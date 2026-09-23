@@ -40,6 +40,11 @@ export const api = {
       headers: { "x-host-token": hostToken },
       body: JSON.stringify({ score1, score2 }),
     }),
+  cancelMatch: (code, matchId, hostToken) =>
+    request(`/api/rooms/${code}/matches/${matchId}/cancel`, {
+      method: "POST",
+      headers: { "x-host-token": hostToken },
+    }),
   leaderboard: (code) => request(`/api/rooms/${code}/players/leaderboard`),
   pairingProgress: (code) => request(`/api/rooms/${code}/players/pairing-progress`),
 };

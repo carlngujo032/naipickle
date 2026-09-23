@@ -6,6 +6,7 @@ import CourtCard from "../components/CourtCard.jsx";
 import AddPlayerForm from "../components/AddPlayerForm.jsx";
 import PlayerManageList from "../components/PlayerManageList.jsx";
 import PairingProgress from "../components/PairingProgress.jsx";
+import NextUpCard from "../components/NextUpCard.jsx";
 
 export default function RoomDashboard() {
   const { code } = useParams();
@@ -47,6 +48,15 @@ export default function RoomDashboard() {
   async function handleFinishMatch(matchId, score1, score2) {
     try {
       await api.finishMatch(code, matchId, Number(score1), Number(score2), hostToken);
+      refresh();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function handleCancelMatch(matchId) {
+    try {
+      await api.cancelMatch(code, matchId, hostToken);
       refresh();
     } catch (err) {
       setError(err.message);
@@ -99,9 +109,11 @@ export default function RoomDashboard() {
                     isHost={isHost}
                     onNextMatch={() => handleNextMatch(court.id)}
                     onFinishMatch={handleFinishMatch}
+                    onCancelMatch={handleCancelMatch}
                   />
                 );
               })}
+              {isHost && <NextUpCard queue={queue} />}
             </div>
           </section>
 

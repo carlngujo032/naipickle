@@ -94,4 +94,30 @@ router.post("/matches/:matchId/finish", requireHost, async (req, res) => {
   res.json({ ok: true });
 });
 
+// POST /api/rooms/:code/matches/:matchId/cancel — cancel an in-progress match
+// (e.g. a player backed out). No stats are recorded; all 4 players return to
+// the queue exactly as they were, and the court opens back up.
+router.post("/matches/:matchId/cancel", requireHost, async (req, res) => {
+  const { matchId } = req.params;
+  const room = req.room;
+
+  const { rows: mRows } = await query(
+    "SELECT * FROM matches WHERE id = $1 AND room_id = $2 AND status = 'in_progress'",
+    [matchId, room.id]
+  );
+  const match = mRows[0];
+  if (!match) return res.status(404).json({ error: "Active match not found" });
+
+  const allIds = [match.team1_p1, match.team1_p2, match.team2_p1, match.team2_p2];
+
+  await query(
+    `UPDATE matches SET status = 'cancelled', ended_at = now() WHERE id = $1`,
+    [matchId]
+  );
+  await query("UPDATE courts SET status = 'empty' WHERE id = $1", [match.court_id]);
+  await query(`UPDATE players SET status = 'waiting' WHERE id = ANY($1::int[])`, [allIds]);
+
+  res.json({ ok: true });
+});
+
 export default router;

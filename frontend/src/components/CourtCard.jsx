@@ -1,8 +1,15 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
-export default function CourtCard({ court, match, findPlayer, isHost, onNextMatch, onFinishMatch }) {
+export default function CourtCard({ court, match, findPlayer, isHost, onNextMatch, onFinishMatch, onCancelMatch }) {
   const [score1, setScore1] = useState("");
   const [score2, setScore2] = useState("");
+
+  // Reset the score boxes whenever the match on this court changes (new
+  // match assigned, or court goes back to empty) so old scores don't linger.
+  useEffect(() => {
+    setScore1("");
+    setScore2("");
+  }, [match?.id]);
 
   const teamName = (id) => findPlayer(id)?.name || "…";
 
@@ -35,13 +42,25 @@ export default function CourtCard({ court, match, findPlayer, isHost, onNextMatc
             )}
           </div>
           {isHost && (
-            <button
-              className="btn tiny finish-btn"
-              onClick={() => onFinishMatch(match.id, score1 || 0, score2 || 0)}
-              disabled={score1 === "" || score2 === ""}
-            >
-              Finish
-            </button>
+            <div className="court-actions">
+              <button
+                className="btn tiny finish-btn"
+                onClick={() => onFinishMatch(match.id, score1 || 0, score2 || 0)}
+                disabled={score1 === "" || score2 === ""}
+              >
+                Finish
+              </button>
+              <button
+                className="btn tiny cancel-btn"
+                onClick={() => {
+                  if (window.confirm("Cancel this match? Players return to the queue and no score is recorded.")) {
+                    onCancelMatch(match.id);
+                  }
+                }}
+              >
+                Cancel Match
+              </button>
+            </div>
           )}
         </div>
       ) : (
