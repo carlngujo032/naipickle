@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 
-export default function CourtCard({ court, match, findPlayer, isHost, onNextMatch, onFinishMatch, onCancelMatch }) {
+export default function CourtCard({ court, match, findPlayer, isHost, onNextMatch, onFinishMatch, onCancelMatch, onReassignMatch }) {
   const [score1, setScore1] = useState("");
   const [score2, setScore2] = useState("");
 
@@ -59,6 +59,20 @@ export default function CourtCard({ court, match, findPlayer, isHost, onNextMatc
                 }}
               >
                 Cancel Match
+              </button>
+              <button
+                className="btn tiny reassign-btn"
+                onClick={() => {
+                  if (
+                    window.confirm(
+                      "Re-assign this match? The current match will be cancelled (no score recorded) and a new match will be created for this court."
+                    )
+                  ) {
+                    onReassignMatch(match.id, match.court_id);
+                  }
+                }}
+              >
+                Re-assign
               </button>
             </div>
           )}
