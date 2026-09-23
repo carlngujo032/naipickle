@@ -45,3 +45,16 @@ h1 { color: #2e7d32; }
 .pos { font-weight: 600; color: #2e7d32; }
 .skill, .games { color: #888; font-size: 0.85em; }
 .leaderboard { padding-left: 20px; }
+.add-player-form { display: flex; gap: 8px; align-items: center; }
+.add-player-form input[type="text"], .add-player-form input:not([type]) { flex: 1; padding: 8px; border: 1px solid #ccc; border-radius: 6px; }
+.add-player-form input[type="number"] { width: 70px; padding: 8px; border: 1px solid #ccc; border-radius: 6px; }
+.manage-list { list-style: none; padding: 0; }
+.manage-list li {
+  background: #fff; padding: 8px 12px; margin-bottom: 6px; border-radius: 8px;
+  display: flex; align-items: center; gap: 8px;
+}
+.status-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; background: #ccc; }
+.status-dot.waiting { background: #f9a825; }
+.status-dot.playing { background: #2e7d32; }
+.status-dot.inactive { background: #999; }
+.status-label { color: #888; font-size: 0.85em; margin-left: auto; }

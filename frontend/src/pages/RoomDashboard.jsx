@@ -3,6 +3,8 @@ import { useParams } from "react-router-dom";
 import { api } from "../api.js";
 import QueueList from "../components/QueueList.jsx";
 import CourtCard from "../components/CourtCard.jsx";
+import AddPlayerForm from "../components/AddPlayerForm.jsx";
+import PlayerManageList from "../components/PlayerManageList.jsx";
 
 export default function RoomDashboard() {
   const { code } = useParams();
@@ -56,6 +58,16 @@ export default function RoomDashboard() {
     }
   }
 
+  async function handleAddPlayer(name, skillLevel) {
+    try {
+      await api.joinRoom(code, name, skillLevel);
+      refresh();
+    } catch (err) {
+      setError(err.message);
+      throw err;
+    }
+  }
+
   if (error) return <div className="page"><p className="error">{error}</p></div>;
   if (!data) return <div className="page">Loading…</div>;
 
@@ -66,6 +78,13 @@ export default function RoomDashboard() {
     <div className="page">
       <h2>{room.title} <span className="code">#{room.code}</span></h2>
       {!isHost && <p className="hint">Viewing as player. Only the host's browser can control matches.</p>}
+
+      {isHost && (
+        <section>
+          <h3>Add Player</h3>
+          <AddPlayerForm onAdd={handleAddPlayer} />
+        </section>
+      )}
 
       <section>
         <h3>Courts</h3>
@@ -91,6 +110,13 @@ export default function RoomDashboard() {
         <h3>Queue ({queue.length} waiting)</h3>
         <QueueList queue={queue} isHost={isHost} onRemove={handleRemovePlayer} />
       </section>
+
+      {isHost && (
+        <section>
+          <h3>Manage Players ({players.length})</h3>
+          <PlayerManageList players={players} onRemove={handleRemovePlayer} />
+        </section>
+      )}
 
       <section>
         <h3>🏆 Top Players</h3>
