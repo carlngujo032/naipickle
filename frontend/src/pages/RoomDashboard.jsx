@@ -72,6 +72,21 @@ export default function RoomDashboard() {
     }
   }
 
+  async function handleReassignMatch(matchId, courtId) {
+    try {
+      await api.cancelMatch(code, matchId, hostToken);
+      try {
+        await api.nextMatch(code, courtId, hostToken);
+      } catch (nextErr) {
+        // not enough players waiting right after cancel — that's fine,
+        // leave the court empty for manual assign
+      }
+      refresh();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
   async function handleRemovePlayer(playerId) {
     try {
       await api.removePlayer(code, playerId, hostToken);
@@ -119,10 +134,13 @@ export default function RoomDashboard() {
                     onNextMatch={() => handleNextMatch(court.id)}
                     onFinishMatch={handleFinishMatch}
                     onCancelMatch={handleCancelMatch}
+                    onReassignMatch={handleReassignMatch}
                   />
                 );
               })}
-              {isHost && <NextUpCard queue={queue} />}
+              {isHost && (
+                <NextUpCard queue={queue} courts={courts} onMatch={handleNextMatch} />
+              )}
             </div>
           </section>
 
