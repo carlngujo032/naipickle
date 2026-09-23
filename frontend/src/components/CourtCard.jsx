@@ -45,10 +45,10 @@ export default function CourtCard({ court, match, findPlayer, isHost, onNextMatc
             <div className="court-actions">
               <button
                 className="btn tiny finish-btn"
-                onClick={() => onFinishMatch(match.id, score1 || 0, score2 || 0)}
+                onClick={() => onFinishMatch(match.id, score1 || 0, score2 || 0, match.court_id)}
                 disabled={score1 === "" || score2 === ""}
               >
-                Finish
+                Finish &amp; Start Next
               </button>
               <button
                 className="btn tiny cancel-btn"

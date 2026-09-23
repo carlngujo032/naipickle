@@ -32,7 +32,7 @@ export default function RoomDashboard() {
 
   useEffect(() => {
     refresh();
-    const interval = setInterval(refresh, 4000); // simple polling; swap for Socket.io later
+    const interval = setInterval(refresh, 2500); // simple polling; swap for Socket.io later
     return () => clearInterval(interval);
   }, [refresh]);
 
@@ -45,9 +45,18 @@ export default function RoomDashboard() {
     }
   }
 
-  async function handleFinishMatch(matchId, score1, score2) {
+  async function handleFinishMatch(matchId, score1, score2, courtId) {
     try {
       await api.finishMatch(code, matchId, Number(score1), Number(score2), hostToken);
+      // Auto-assign the next match to this same court immediately, using the
+      // live queue at this exact moment — not whatever the "Next Up" preview
+      // showed a few seconds earlier. If there aren't 4 players waiting yet,
+      // this just fails quietly and the court stays empty for manual assign.
+      try {
+        await api.nextMatch(code, courtId, hostToken);
+      } catch (nextErr) {
+        // not enough players waiting — that's fine, leave court empty
+      }
       refresh();
     } catch (err) {
       setError(err.message);
