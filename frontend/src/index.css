@@ -180,6 +180,8 @@ h1, h2, h3, h4 { color: var(--green-800); margin: 0 0 6px; }
 .court-actions { display: flex; gap: 8px; margin-top: 10px; }
 .finish-btn { flex: 1; }
 .cancel-btn { flex: 1; background: #fff !important; color: var(--danger) !important; border: 1px solid var(--danger); }
+.reassign-btn { flex: 1; background: #fff !important; color: var(--green-700) !important; border: 1px solid var(--green-600); }
+.match-btn { flex: 1; }
 .next-up-card { border-left-color: #f9a825 !important; background: #fffdf5; }
 .next-up-note { font-size: 0.78em; margin-top: 6px; }
 
