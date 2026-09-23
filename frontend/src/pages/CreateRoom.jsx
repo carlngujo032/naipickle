@@ -8,11 +8,13 @@ export default function CreateRoom() {
   const [maxPlayers, setMaxPlayers] = useState(24);
   const [maxCourts, setMaxCourts] = useState(4);
   const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const navigate = useNavigate();
 
   async function handleSubmit(e) {
     e.preventDefault();
     setError("");
+    setSubmitting(true);
     try {
       const { room, hostToken } = await api.createRoom({
         title,
@@ -25,6 +27,8 @@ export default function CreateRoom() {
       navigate(`/room/${room.code}`);
     } catch (err) {
       setError(err.message);
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -52,7 +56,9 @@ export default function CreateRoom() {
             <input type="number" min={1} value={maxCourts} onChange={(e) => setMaxCourts(e.target.value)} />
           </label>
           {error && <p className="error">{error}</p>}
-          <button className="btn" type="submit">Create Room</button>
+          <button className="btn" type="submit" disabled={submitting}>
+            {submitting ? "Creating…" : "Create Room"}
+          </button>
         </form>
       </div>
     </div>
