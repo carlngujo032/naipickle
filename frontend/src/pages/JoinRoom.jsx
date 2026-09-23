@@ -8,11 +8,13 @@ export default function JoinRoom() {
   const [name, setName] = useState("");
   const [skillLevel, setSkillLevel] = useState(3.0);
   const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const navigate = useNavigate();
 
   async function handleSubmit(e) {
     e.preventDefault();
     setError("");
+    setSubmitting(true);
     try {
       const upperCode = code.trim().toUpperCase();
       await api.verifyRoom(upperCode, password);
@@ -20,6 +22,8 @@ export default function JoinRoom() {
       navigate(`/room/${upperCode}`);
     } catch (err) {
       setError(err.message);
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -50,7 +54,9 @@ export default function JoinRoom() {
             />
           </label>
           {error && <p className="error">{error}</p>}
-          <button className="btn" type="submit">Join</button>
+          <button className="btn" type="submit" disabled={submitting}>
+            {submitting ? "Joining…" : "Join"}
+          </button>
         </form>
       </div>
     </div>
