@@ -208,3 +208,23 @@ h1, h2, h3, h4 { color: var(--green-800); margin: 0 0 6px; }
 
 .code { font-weight: 400; color: var(--muted); font-size: 0.7em; }
 section { margin-bottom: 28px; }
+
+/* ---------- Dashboard (horizontal layout) ---------- */
+.dashboard-page { max-width: 1180px; }
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 28px;
+  align-items: start;
+}
+.dashboard-side { position: sticky; top: 20px; }
+@media (max-width: 800px) {
+  .dashboard-grid { grid-template-columns: 1fr; }
+  .dashboard-side { position: static; }
+}
+
+/* ---------- Pairing progress ---------- */
+.pairing-progress { background: #fff; border-radius: 12px; padding: 14px 16px; box-shadow: 0 1px 3px rgba(30,81,40,0.06); }
+.pairing-bar { height: 10px; background: var(--green-100); border-radius: 999px; overflow: hidden; }
+.pairing-bar-fill { height: 100%; background: linear-gradient(90deg, var(--green-500), var(--green-700)); transition: width 0.3s ease; }
+.pairing-label { margin: 8px 0 0; font-size: 0.9em; color: var(--muted); }

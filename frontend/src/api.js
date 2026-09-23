@@ -41,4 +41,5 @@ export const api = {
       body: JSON.stringify({ score1, score2 }),
     }),
   leaderboard: (code) => request(`/api/rooms/${code}/players/leaderboard`),
+  pairingProgress: (code) => request(`/api/rooms/${code}/players/pairing-progress`),
 };

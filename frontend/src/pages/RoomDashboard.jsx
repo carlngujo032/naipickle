@@ -5,11 +5,13 @@ import QueueList from "../components/QueueList.jsx";
 import CourtCard from "../components/CourtCard.jsx";
 import AddPlayerForm from "../components/AddPlayerForm.jsx";
 import PlayerManageList from "../components/PlayerManageList.jsx";
+import PairingProgress from "../components/PairingProgress.jsx";
 
 export default function RoomDashboard() {
   const { code } = useParams();
   const [data, setData] = useState(null);
   const [leaderboard, setLeaderboard] = useState([]);
+  const [progress, setProgress] = useState(null);
   const [error, setError] = useState("");
   const hostToken = localStorage.getItem(`host_${code}`);
   const isHost = Boolean(hostToken);
@@ -20,6 +22,8 @@ export default function RoomDashboard() {
       setData(d);
       const lb = await api.leaderboard(code);
       setLeaderboard(lb.leaderboard);
+      const pp = await api.pairingProgress(code);
+      setProgress(pp);
     } catch (err) {
       setError(err.message);
     }
@@ -75,60 +79,71 @@ export default function RoomDashboard() {
   const findPlayer = (id) => players.find((p) => p.id === id);
 
   return (
-    <div className="page">
+    <div className="page dashboard-page">
       <h2>{room.title} <span className="code">#{room.code}</span></h2>
       {!isHost && <p className="hint">Viewing as player. Only the host's browser can control matches.</p>}
 
-      {isHost && (
-        <section>
-          <h3>Add Player</h3>
-          <AddPlayerForm onAdd={handleAddPlayer} />
-        </section>
-      )}
+      <div className="dashboard-grid">
+        <div className="dashboard-main">
+          <section>
+            <h3>Courts</h3>
+            <div className="grid">
+              {courts.map((court) => {
+                const match = activeMatches.find((m) => m.court_id === court.id);
+                return (
+                  <CourtCard
+                    key={court.id}
+                    court={court}
+                    match={match}
+                    findPlayer={findPlayer}
+                    isHost={isHost}
+                    onNextMatch={() => handleNextMatch(court.id)}
+                    onFinishMatch={handleFinishMatch}
+                  />
+                );
+              })}
+            </div>
+          </section>
 
-      <section>
-        <h3>Courts</h3>
-        <div className="grid">
-          {courts.map((court) => {
-            const match = activeMatches.find((m) => m.court_id === court.id);
-            return (
-              <CourtCard
-                key={court.id}
-                court={court}
-                match={match}
-                findPlayer={findPlayer}
-                isHost={isHost}
-                onNextMatch={() => handleNextMatch(court.id)}
-                onFinishMatch={handleFinishMatch}
-              />
-            );
-          })}
+          <section>
+            <h3>Queue ({queue.length} waiting)</h3>
+            <QueueList queue={queue} isHost={isHost} onRemove={handleRemovePlayer} />
+          </section>
+
+          <section>
+            <h3>Session Progress</h3>
+            <PairingProgress progress={progress} />
+          </section>
         </div>
-      </section>
 
-      <section>
-        <h3>Queue ({queue.length} waiting)</h3>
-        <QueueList queue={queue} isHost={isHost} onRemove={handleRemovePlayer} />
-      </section>
+        <aside className="dashboard-side">
+          {isHost && (
+            <section>
+              <h3>Add Player</h3>
+              <AddPlayerForm onAdd={handleAddPlayer} />
+            </section>
+          )}
 
-      {isHost && (
-        <section>
-          <h3>Manage Players ({players.length})</h3>
-          <PlayerManageList players={players} onRemove={handleRemovePlayer} />
-        </section>
-      )}
+          {isHost && (
+            <section>
+              <h3>Manage Players ({players.length})</h3>
+              <PlayerManageList players={players} onRemove={handleRemovePlayer} />
+            </section>
+          )}
 
-      <section>
-        <h3>🏆 Top Players</h3>
-        <ol className="leaderboard">
-          {leaderboard.map((p) => (
-            <li key={p.id}>
-              {p.name} — {p.wins}W / {p.losses}L ({Math.round(p.win_rate * 100)}%)
-            </li>
-          ))}
-          {!leaderboard.length && <p className="hint">No completed games yet.</p>}
-        </ol>
-      </section>
+          <section>
+            <h3>🏆 Top Players</h3>
+            <ol className="leaderboard">
+              {leaderboard.map((p) => (
+                <li key={p.id}>
+                  {p.name} — {p.wins}W / {p.losses}L ({Math.round(p.win_rate * 100)}%)
+                </li>
+              ))}
+              {!leaderboard.length && <p className="hint">No completed games yet.</p>}
+            </ol>
+          </section>
+        </aside>
+      </div>
     </div>
   );
 }

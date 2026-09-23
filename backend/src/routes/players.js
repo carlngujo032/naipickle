@@ -77,4 +77,48 @@ router.get("/leaderboard", async (req, res) => {
   res.json({ leaderboard: rows });
 });
 
+// GET /api/rooms/:code/players/pairing-progress — how many unique partner
+// pairings (teammates, not opponents) have happened vs. how many are possible
+// among the currently active players. Useful signal for "has everyone played
+// with everyone" so the host knows when to wrap up or start repeating.
+router.get("/pairing-progress", async (req, res) => {
+  const { code } = req.params;
+  const room = await getRoomByCode(code);
+  if (!room) return res.status(404).json({ error: "Room not found" });
+
+  const { rows: activePlayers } = await query(
+    "SELECT id FROM players WHERE room_id = $1 AND status != 'inactive'",
+    [room.id]
+  );
+  const activeIds = new Set(activePlayers.map((p) => p.id));
+  const n = activePlayers.length;
+  const totalPossiblePairs = n >= 2 ? (n * (n - 1)) / 2 : 0;
+
+  const { rows: matches } = await query(
+    `SELECT team1_p1, team1_p2, team2_p1, team2_p2 FROM matches
+     WHERE room_id = $1 AND status = 'finished'`,
+    [room.id]
+  );
+
+  const playedPairs = new Set();
+  for (const m of matches) {
+    for (const [a, b] of [
+      [m.team1_p1, m.team1_p2],
+      [m.team2_p1, m.team2_p2],
+    ]) {
+      if (activeIds.has(a) && activeIds.has(b)) {
+        playedPairs.add([a, b].sort((x, y) => x - y).join("-"));
+      }
+    }
+  }
+
+  res.json({
+    totalPlayers: n,
+    totalPossiblePairs,
+    uniquePairsPlayed: playedPairs.size,
+    pairsRemaining: Math.max(totalPossiblePairs - playedPairs.size, 0),
+    complete: totalPossiblePairs > 0 && playedPairs.size >= totalPossiblePairs,
+  });
+});
+
 export default router;
