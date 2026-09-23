@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api.js";
 
 export default function JoinRoom() {
@@ -24,31 +24,35 @@ export default function JoinRoom() {
   }
 
   return (
-    <div className="page">
-      <h2>Join a Room</h2>
-      <form onSubmit={handleSubmit} className="form">
-        <label>
-          Room Code
-          <input value={code} onChange={(e) => setCode(e.target.value)} required />
-        </label>
-        <label>
-          Password (if required)
-          <input value={password} onChange={(e) => setPassword(e.target.value)} />
-        </label>
-        <label>
-          Your Name
-          <input value={name} onChange={(e) => setName(e.target.value)} required />
-        </label>
-        <label>
-          Skill Level (2.0–5.0)
-          <input
-            type="number" step="0.5" min={2} max={5}
-            value={skillLevel} onChange={(e) => setSkillLevel(e.target.value)}
-          />
-        </label>
-        {error && <p className="error">{error}</p>}
-        <button className="btn" type="submit">Join</button>
-      </form>
+    <div className="auth-page">
+      <div className="auth-card">
+        <Link to="/" className="back-link">← Back</Link>
+        <h2>Join a Room</h2>
+        <p className="hint">Enter the room code your host shared with you.</p>
+        <form onSubmit={handleSubmit} className="form">
+          <label>
+            Room Code
+            <input value={code} onChange={(e) => setCode(e.target.value)} required />
+          </label>
+          <label>
+            Password (if required)
+            <input value={password} onChange={(e) => setPassword(e.target.value)} />
+          </label>
+          <label>
+            Your Name
+            <input value={name} onChange={(e) => setName(e.target.value)} required />
+          </label>
+          <label>
+            Skill Level (2.0–5.0)
+            <input
+              type="number" step="0.5" min={2} max={5}
+              value={skillLevel} onChange={(e) => setSkillLevel(e.target.value)}
+            />
+          </label>
+          {error && <p className="error">{error}</p>}
+          <button className="btn" type="submit">Join</button>
+        </form>
+      </div>
     </div>
   );
 }

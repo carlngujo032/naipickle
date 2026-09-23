@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api.js";
 
 export default function CreateRoom() {
@@ -29,28 +29,32 @@ export default function CreateRoom() {
   }
 
   return (
-    <div className="page">
-      <h2>Create a Room</h2>
-      <form onSubmit={handleSubmit} className="form">
-        <label>
-          Title
-          <input value={title} onChange={(e) => setTitle(e.target.value)} required />
-        </label>
-        <label>
-          Password (optional)
-          <input value={password} onChange={(e) => setPassword(e.target.value)} />
-        </label>
-        <label>
-          Max Players
-          <input type="number" min={4} value={maxPlayers} onChange={(e) => setMaxPlayers(e.target.value)} />
-        </label>
-        <label>
-          Number of Courts
-          <input type="number" min={1} value={maxCourts} onChange={(e) => setMaxCourts(e.target.value)} />
-        </label>
-        {error && <p className="error">{error}</p>}
-        <button className="btn" type="submit">Create Room</button>
-      </form>
+    <div className="auth-page">
+      <div className="auth-card">
+        <Link to="/" className="back-link">← Back</Link>
+        <h2>Create a Room</h2>
+        <p className="hint">Set it up, share the code, and start the queue.</p>
+        <form onSubmit={handleSubmit} className="form">
+          <label>
+            Title
+            <input value={title} onChange={(e) => setTitle(e.target.value)} required />
+          </label>
+          <label>
+            Password (optional)
+            <input value={password} onChange={(e) => setPassword(e.target.value)} />
+          </label>
+          <label>
+            Max Players
+            <input type="number" min={4} value={maxPlayers} onChange={(e) => setMaxPlayers(e.target.value)} />
+          </label>
+          <label>
+            Number of Courts
+            <input type="number" min={1} value={maxCourts} onChange={(e) => setMaxCourts(e.target.value)} />
+          </label>
+          {error && <p className="error">{error}</p>}
+          <button className="btn" type="submit">Create Room</button>
+        </form>
+      </div>
     </div>
   );
 }
