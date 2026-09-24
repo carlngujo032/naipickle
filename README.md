@@ -15,9 +15,14 @@ Stack: React (Vite) + Express + Neon (Postgres).
 - Report match score → players return to queue, stats update automatically
 - Leaderboard (win rate, wins/losses) per room
 - Simple host-only controls via a host token saved in the browser that created the room
+- **Your Rooms** list on the home page — Back button no longer loses your room
+- **Instant updates** with Socket.io (a slow safety refresh runs underneath in case the live connection drops)
+- **📺 TV Board** at `/room/<CODE>/tv` — read-only big-screen view of courts, queue and top players
+- **Pause / Taking a break** — a player (or the host) sits out without losing stats; skipped by matchmaking until they return
+- **📊 Session summary** at `/room/<CODE>/summary` — top player, most games, attendance, totals. The host can **End Session** (and reopen it)
 
-Not included yet (see "Next steps" below): real-time push updates (currently
-polls every 4s), accounts/auth beyond the host token, notifications.
+Not included yet (see "Next steps" below): accounts/auth beyond the host and
+player tokens, notifications.
 
 ## 1. Set up the database (Neon)
 
@@ -62,6 +67,10 @@ Runs on `http://localhost:5173`.
 
 ## Deployment
 
+Socket.io runs inside the same backend service — no extra setup on Render
+(WebSockets are supported). The backend adds the `player_token` column on
+startup if it's missing, so no manual migration is needed for existing data.
+
 - **Backend → Render**: create a Web Service from the `backend` folder,
   set `DATABASE_URL` and `CORS_ORIGIN` (your Vercel URL) as env vars,
   build command `npm install`, start command `npm start`.
@@ -70,9 +79,6 @@ Runs on `http://localhost:5173`.
 
 ## Next steps to build
 
-- Swap polling for **Socket.io** so queue/court changes push instantly
 - QR code for room join link
-- "Now playing" read-only board view for a TV/projector
 - Push/SMS notification when a player's court opens
 - DUPR-style rating import
-- Session end summary (MVP, attendance, most games played)

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api.js";
+import { saveMyRoom } from "../myRooms.js";
 
 export default function CreateRoom() {
   const [title, setTitle] = useState("");
@@ -24,7 +25,9 @@ export default function CreateRoom() {
       });
       // Save host token locally so this browser can manage the room
       localStorage.setItem(`host_${room.code}`, hostToken);
-      navigate(`/room/${room.code}`);
+      saveMyRoom({ code: room.code, title: room.title, role: "host" });
+      // replace: pressing Back from the room goes Home, not to this form
+      navigate(`/room/${room.code}`, { replace: true });
     } catch (err) {
       setError(err.message);
     } finally {

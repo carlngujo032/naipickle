@@ -45,6 +45,22 @@ export const api = {
       method: "POST",
       headers: { "x-host-token": hostToken },
     }),
+  setBreak: (code, playerId, onBreak, { hostToken, playerToken } = {}) =>
+    request(`/api/rooms/${code}/players/${playerId}/break`, {
+      method: "POST",
+      headers: {
+        ...(hostToken ? { "x-host-token": hostToken } : {}),
+        ...(playerToken ? { "x-player-token": playerToken } : {}),
+      },
+      body: JSON.stringify({ onBreak }),
+    }),
+  updateRoom: (code, body, hostToken) =>
+    request(`/api/rooms/${code}`, {
+      method: "PATCH",
+      headers: { "x-host-token": hostToken },
+      body: JSON.stringify(body),
+    }),
+  summary: (code) => request(`/api/rooms/${code}/summary`),
   leaderboard: (code) => request(`/api/rooms/${code}/players/leaderboard`),
   pairingProgress: (code) => request(`/api/rooms/${code}/players/pairing-progress`),
 };

@@ -17,15 +17,19 @@ CREATE TABLE IF NOT EXISTS players (
   room_id        INTEGER NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
   name           VARCHAR(60) NOT NULL,
   skill_level    NUMERIC(3,1) DEFAULT 3.0, -- 2.0 to 5.0 DUPR-style
-  status         VARCHAR(20) NOT NULL DEFAULT 'waiting', -- waiting | playing | inactive
+  status         VARCHAR(20) NOT NULL DEFAULT 'waiting', -- waiting | playing | break | inactive
   games_played   INTEGER NOT NULL DEFAULT 0,
   wins           INTEGER NOT NULL DEFAULT 0,
   losses         INTEGER NOT NULL DEFAULT 0,
   points_for     INTEGER NOT NULL DEFAULT 0,
   points_against INTEGER NOT NULL DEFAULT 0,
   joined_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-  last_played_at TIMESTAMPTZ
+  last_played_at TIMESTAMPTZ,
+  player_token   VARCHAR(64) -- lets a player manage their own break from their own device
 );
+
+-- for databases created before player_token existed (safe to re-run)
+ALTER TABLE players ADD COLUMN IF NOT EXISTS player_token VARCHAR(64);
 
 CREATE TABLE IF NOT EXISTS courts (
   id            SERIAL PRIMARY KEY,

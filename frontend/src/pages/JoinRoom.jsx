@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api.js";
+import { findMyRoom, saveMyRoom } from "../myRooms.js";
 
 export default function JoinRoom() {
   const [code, setCode] = useState("");
@@ -17,9 +18,28 @@ export default function JoinRoom() {
     setSubmitting(true);
     try {
       const upperCode = code.trim().toUpperCase();
-      await api.verifyRoom(upperCode, password);
-      await api.joinRoom(upperCode, name, Number(skillLevel));
-      navigate(`/room/${upperCode}`);
+      const { room } = await api.verifyRoom(upperCode, password);
+
+      // If this browser already joined this room, don't add the same player
+      // twice — just reuse the existing spot (if the host hasn't removed it).
+      const existing = findMyRoom(upperCode);
+      let playerId = existing?.playerId;
+      let playerToken = existing?.playerToken;
+      let playerName = existing?.name || name;
+      if (playerId) {
+        const d = await api.getRoom(upperCode);
+        if (!d.players.some((p) => p.id === playerId)) playerId = undefined;
+      }
+      if (!playerId) {
+        const { player } = await api.joinRoom(upperCode, name, Number(skillLevel));
+        playerId = player.id;
+        playerToken = player.player_token; // lets this device manage its own break
+        playerName = name;
+      }
+
+      saveMyRoom({ code: upperCode, title: room.title, role: "guest", name: playerName, playerId, playerToken });
+      // replace: pressing Back from the room goes Home, not to this form
+      navigate(`/room/${upperCode}`, { replace: true });
     } catch (err) {
       setError(err.message);
     } finally {

@@ -74,11 +74,13 @@ router.get("/:code", async (req, res) => {
   if (!roomRows[0]) return res.status(404).json({ error: "Room not found" });
   const room = roomRows[0];
 
-  const { rows: players } = await query(
+  const { rows: playerRows } = await query(
     `SELECT * FROM players WHERE room_id = $1
      ORDER BY games_played ASC, last_played_at ASC NULLS FIRST, joined_at ASC`,
     [room.id]
   );
+  // player_token is a private key for that one player — don't broadcast it
+  const players = playerRows.map(({ player_token, ...p }) => p);
   const { rows: courts } = await query(
     "SELECT * FROM courts WHERE room_id = $1 ORDER BY court_number ASC",
     [room.id]
@@ -100,9 +102,106 @@ router.get("/:code", async (req, res) => {
   });
 });
 
+// GET /api/rooms/:code/summary — end-of-session recap: top player(s), most
+// games played, attendance and totals. Safe to view mid-session too.
+router.get("/:code/summary", async (req, res) => {
+  try {
+    const { code } = req.params;
+    const { rows: roomRows } = await query(
+      "SELECT id, code, title, status, created_at FROM rooms WHERE code = $1",
+      [code]
+    );
+    const room = roomRows[0];
+    if (!room) return res.status(404).json({ error: "Room not found" });
+
+    const { rows: playerRows } = await query(
+      `SELECT id, name, skill_level, status, games_played, wins, losses, points_for, points_against
+       FROM players WHERE room_id = $1`,
+      [room.id]
+    );
+    const { rows: matchRows } = await query(
+      `SELECT COUNT(*)::int AS matches,
+              COALESCE(SUM(score1 + score2), 0)::int AS points,
+              MIN(started_at) AS first_start,
+              MAX(ended_at) AS last_end
+       FROM matches WHERE room_id = $1 AND status = 'finished'`,
+      [room.id]
+    );
+    const totals = matchRows[0];
+
+    const attendance = playerRows
+      .map((p) => ({
+        ...p,
+        win_rate: p.games_played > 0 ? p.wins / p.games_played : 0,
+        point_diff: p.points_for - p.points_against,
+      }))
+      .sort(
+        (a, b) =>
+          b.wins - a.wins ||
+          b.win_rate - a.win_rate ||
+          b.point_diff - a.point_diff ||
+          b.games_played - a.games_played ||
+          a.name.localeCompare(b.name)
+      );
+
+    const played = attendance.filter((p) => p.games_played > 0);
+
+    // Top player = most wins, then best win rate, then best point difference.
+    // Anyone exactly level on all three is returned too (a real tie).
+    const sameAsTop = (p) =>
+      p.wins === played[0].wins &&
+      p.win_rate === played[0].win_rate &&
+      p.point_diff === played[0].point_diff;
+    const topPlayers = played.length ? played.filter(sameAsTop) : [];
+
+    const maxGames = played.length ? Math.max(...played.map((p) => p.games_played)) : 0;
+    const mostGames = {
+      games: maxGames,
+      players: played.filter((p) => p.games_played === maxGames),
+    };
+
+    let playMinutes = null;
+    if (totals.first_start && totals.last_end) {
+      playMinutes = Math.max(
+        Math.round((new Date(totals.last_end) - new Date(totals.first_start)) / 60000),
+        0
+      );
+    }
+
+    res.json({
+      room,
+      totals: {
+        players: attendance.length,
+        playersWhoPlayed: played.length,
+        matches: totals.matches,
+        points: totals.points,
+        playMinutes,
+      },
+      topPlayers,
+      mostGames,
+      attendance,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to load summary" });
+  }
+});
+
 // PATCH /api/rooms/:code — update room (host only): close/reopen, lock, etc.
 router.patch("/:code", requireHost, async (req, res) => {
   const { status, title, maxPlayers } = req.body;
+  if (status && !["open", "closed"].includes(status)) {
+    return res.status(400).json({ error: "Status must be 'open' or 'closed'" });
+  }
+  if (status === "closed") {
+    const { rows: active } = await query(
+      "SELECT 1 FROM matches WHERE room_id = $1 AND status = 'in_progress' LIMIT 1",
+      [req.room.id]
+    );
+    if (active.length) {
+      return res.status(400).json({ error: "Finish or cancel the matches still on court before ending the session" });
+    }
+  }
   const fields = [];
   const values = [];
   let i = 1;

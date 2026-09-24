@@ -10,6 +10,7 @@ const router = Router({ mergeParams: true });
 router.post("/queue/next", requireHost, async (req, res) => {
   const { courtId, mode = "balanced" } = req.body;
   const room = req.room;
+  if (room.status !== "open") return res.status(400).json({ error: "This session has ended" });
 
   const { rows: courtRows } = await query(
     "SELECT * FROM courts WHERE id = $1 AND room_id = $2",
