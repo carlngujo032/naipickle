@@ -16,40 +16,26 @@ const app = express();
 const PORT = process.env.PORT || 4000;
 const corsOrigin = process.env.CORS_ORIGIN || "*";
 
-// --------------------------------------------------
 // Middleware
-// --------------------------------------------------
-
 app.use(cors({ origin: corsOrigin }));
 app.use(express.json());
 
-// --------------------------------------------------
-// Health / root endpoints
-// --------------------------------------------------
-
+// Root endpoint
 app.get("/", (req, res) => {
   res.json({
     ok: true,
-    service: "pickleball-open-play-api",
+    service: "pickleball-open-play-api"
   });
 });
 
+// Health check endpoint for UptimeRobot
 app.get("/api/health", (req, res) => {
   res.status(200).json({
-    ok: true,
+    ok: true
   });
 });
 
-// --------------------------------------------------
-// Room realtime notifications
-// --------------------------------------------------
-
-// Any successful change to a room (add player, assign match,
-// finish, break, end session, etc.) notifies everyone
-// watching that room so they can refresh immediately.
-//
-// Reads and the password verification endpoint do not
-// trigger notifications.
+// Notify clients when a room is changed
 app.use("/api/rooms/:code", (req, res, next) => {
   const changes = ["POST", "PATCH", "PUT", "DELETE"].includes(req.method);
 
@@ -64,32 +50,21 @@ app.use("/api/rooms/:code", (req, res, next) => {
   next();
 });
 
-// --------------------------------------------------
 // API routes
-// --------------------------------------------------
-
 app.use("/api/rooms", roomsRouter);
 app.use("/api/rooms/:code/players", playersRouter);
 app.use("/api/rooms/:code", matchesRouter);
 
-// --------------------------------------------------
 // Error handler
-// --------------------------------------------------
-
 app.use((err, req, res, next) => {
   console.error(err);
 
   res.status(500).json({
-    error: "Internal server error",
+    error: "Internal server error"
   });
 });
 
-// --------------------------------------------------
 // Database compatibility check
-// --------------------------------------------------
-
-// Make sure older databases have the newer player_token
-// column so deployment does not require a manual migration.
 try {
   await query(
     "ALTER TABLE players ADD COLUMN IF NOT EXISTS player_token VARCHAR(64)"
@@ -98,15 +73,14 @@ try {
   console.error("Schema check failed:", err.message);
 }
 
-// --------------------------------------------------
-// HTTP + realtime server
-// --------------------------------------------------
-
+// Create HTTP server
 const server = http.createServer(app);
 
+// Initialize realtime functionality
 initRealtime(server, corsOrigin);
 
+// Start server
 server.listen(PORT, "0.0.0.0", () => {
-  console.log(`🥒 Pickleball API running on port ${PORT}`);
+  console.log("Pickleball API running on port " + PORT);
 });
 ```
