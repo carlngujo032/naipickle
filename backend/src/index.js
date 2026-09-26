@@ -31,23 +31,23 @@ ok: true
 });
 });
 
-app.use("/api/rooms/", (req, res, next) => {
-const changes = ["POST", "PATCH", "PUT", "DELETE"].includes(req.method);
+app.use("/api/rooms/:code", (req, res, next) => {
+  const changes = ["POST", "PATCH", "PUT", "DELETE"].includes(req.method);
 
-if (changes && !req.path.endsWith("/verify")) {
-res.on("finish", () => {
-if (res.statusCode < 400) {
-notifyRoom(req.params.code);
-}
-});
-}
+  if (changes && !req.path.endsWith("/verify")) {
+    res.on("finish", () => {
+      if (res.statusCode < 400) {
+        notifyRoom(req.params.code);
+      }
+    });
+  }
 
-next();
+  next();
 });
 
 app.use("/api/rooms", roomsRouter);
-app.use("/api/rooms//players", playersRouter);
-app.use("/api/rooms/", matchesRouter);
+app.use("/api/rooms/:code/players", playersRouter);
+app.use("/api/rooms/:code", matchesRouter);
 
 app.use((err, req, res, next) => {
 console.error(err);
