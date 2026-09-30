@@ -96,7 +96,7 @@ export default function TVBoard() {
               <ol className="tv-queue">
                 {nextFour.map((p, i) => (
                   <li key={p.id} className="next">
-                    <span className="tv-pos">{i + 1}</span> {p.name}
+                    <span className="tv-pos">{i + 1}</span> {p.name}{p.account_id && <span className={`level-badge lv-${p.level || 0}`}>{p.level ? `Lv ${p.level}` : "Unrated"}</span>}
                   </li>
                 ))}
                 {afterThat.map((p, i) => (

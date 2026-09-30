@@ -145,6 +145,16 @@ export default function RoomDashboard() {
     }
   }
 
+  async function handleAddAccount(accountId) {
+    try {
+      await api.addRegisteredPlayer(code, accountId, hostToken);
+      refresh();
+    } catch (err) {
+      showNotice(err.message);
+      throw err;
+    }
+  }
+
   // Take a break / come back. Works for your own player (player token) and,
   // in the host's browser, for anyone (host token).
   async function handleToggleBreak(playerId, onBreak) {
@@ -299,7 +309,11 @@ export default function RoomDashboard() {
           {isHost && !closed && (
             <section>
               <h3>Add Player</h3>
-              <AddPlayerForm onAdd={handleAddPlayer} />
+              <AddPlayerForm
+                onAdd={handleAddPlayer}
+                onAddAccount={handleAddAccount}
+                loadAccounts={(s) => api.listAccounts(code, s, hostToken)}
+              />
             </section>
           )}
 

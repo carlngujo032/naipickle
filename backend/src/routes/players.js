@@ -2,6 +2,8 @@ import { Router } from "express";
 import { query } from "../db.js";
 import { customAlphabet } from "nanoid";
 import { requireHost } from "./rooms.js";
+import { accountFromRequest } from "../utils/auth.js";
+import { computeLevel } from "../utils/level.js";
 
 const router = Router({ mergeParams: true });
 const genPlayerToken = customAlphabet("abcdefghijklmnopqrstuvwxyz0123456789", 32);
@@ -14,12 +16,43 @@ async function getRoomByCode(code) {
 // POST /api/rooms/:code/players — self-join OR host adding a walk-in
 router.post("/", async (req, res) => {
   const { code } = req.params;
-  const { name, skillLevel = 3.0 } = req.body;
-  if (!name) return res.status(400).json({ error: "Name is required" });
+  const { name, skillLevel = 3.0, accountId, asAccount } = req.body;
+  const isAccountJoin = Boolean(accountId) || asAccount === true;
+  if (!isAccountJoin && !name) return res.status(400).json({ error: "Name is required" });
 
   const room = await getRoomByCode(code);
   if (!room) return res.status(404).json({ error: "Room not found" });
   if (room.status !== "open") return res.status(400).json({ error: "Room is not accepting players" });
+
+  // Registered player: either they join themselves (logged in, asAccount) or
+  // the host picks them from the dropdown (accountId + host token).
+  let account = null;
+  if (isAccountJoin) {
+    if (accountId) {
+      const token = req.headers["x-host-token"];
+      if (!token || token !== room.host_token) {
+        return res.status(403).json({ error: "Only the host can add another player" });
+      }
+      const { rows: accRows } = await query("SELECT * FROM accounts WHERE id = $1", [accountId]);
+      account = accRows[0];
+    } else {
+      account = await accountFromRequest(req);
+    }
+    if (!account) return res.status(401).json({ error: "Please log in first" });
+
+    // Already in this room? Reuse that entry (and bring them back if they had left).
+    const { rows: existing } = await query(
+      "SELECT * FROM players WHERE room_id = $1 AND account_id = $2",
+      [room.id, account.id]
+    );
+    if (existing[0]) {
+      if (existing[0].status === "inactive") {
+        await query("UPDATE players SET status = 'waiting' WHERE id = $1", [existing[0].id]);
+        existing[0].status = "waiting";
+      }
+      return res.status(200).json({ player: existing[0] });
+    }
+  }
 
   const { rows: countRows } = await query(
     "SELECT COUNT(*) FROM players WHERE room_id = $1 AND status != 'inactive'",
@@ -29,9 +62,12 @@ router.post("/", async (req, res) => {
     return res.status(400).json({ error: "Room is full" });
   }
 
+  const playerName = account ? account.display_name : name;
+  const playerSkill = account ? computeLevel(account.wins, account.games_played) ?? 3.0 : skillLevel;
   const { rows } = await query(
-    `INSERT INTO players (room_id, name, skill_level, player_token) VALUES ($1, $2, $3, $4) RETURNING *`,
-    [room.id, name, skillLevel, genPlayerToken()]
+    `INSERT INTO players (room_id, name, skill_level, player_token, account_id)
+     VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+    [room.id, playerName, playerSkill, genPlayerToken(), account ? account.id : null]
   );
   res.status(201).json({ player: rows[0] });
 });

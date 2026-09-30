@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api.js";
+import { getAuth } from "../auth.js";
 import { findMyRoom, saveMyRoom } from "../myRooms.js";
 
 export default function JoinRoom() {
@@ -11,6 +12,8 @@ export default function JoinRoom() {
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const navigate = useNavigate();
+  const auth = getAuth();
+  const me = auth?.account;
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -25,16 +28,19 @@ export default function JoinRoom() {
       const existing = findMyRoom(upperCode);
       let playerId = existing?.playerId;
       let playerToken = existing?.playerToken;
-      let playerName = existing?.name || name;
+      let playerName = existing?.name || (me ? me.display_name : name);
       if (playerId) {
         const d = await api.getRoom(upperCode);
         if (!d.players.some((p) => p.id === playerId)) playerId = undefined;
       }
       if (!playerId) {
-        const { player } = await api.joinRoom(upperCode, name, Number(skillLevel));
+        // Logged in: join as your account (name + level come from your profile)
+        const { player } = me
+          ? await api.joinRoomAsAccount(upperCode)
+          : await api.joinRoom(upperCode, name, Number(skillLevel));
         playerId = player.id;
         playerToken = player.player_token; // lets this device manage its own break
-        playerName = name;
+        playerName = player.name;
       }
 
       saveMyRoom({ code: upperCode, title: room.title, role: "guest", name: playerName, playerId, playerToken });
@@ -62,17 +68,29 @@ export default function JoinRoom() {
             Password (if required)
             <input value={password} onChange={(e) => setPassword(e.target.value)} />
           </label>
-          <label>
-            Your Name
-            <input value={name} onChange={(e) => setName(e.target.value)} required />
-          </label>
-          <label>
-            Skill Level (2.0–5.0)
-            <input
-              type="number" step="0.5" min={2} max={5}
-              value={skillLevel} onChange={(e) => setSkillLevel(e.target.value)}
-            />
-          </label>
+          {me ? (
+            <p className="hint">
+              Joining as <strong>{me.display_name}</strong>{" "}
+              {me.level ? `(Level ${me.level})` : "(Unrated)"}
+            </p>
+          ) : (
+            <>
+              <label>
+                Your Name
+                <input value={name} onChange={(e) => setName(e.target.value)} required />
+              </label>
+              <label>
+                Skill Level (2.0–5.0)
+                <input
+                  type="number" step="0.5" min={2} max={5}
+                  value={skillLevel} onChange={(e) => setSkillLevel(e.target.value)}
+                />
+              </label>
+              <p className="hint">
+                <Link to="/login?next=/join">Log in</Link> to play with your own level and stats.
+              </p>
+            </>
+          )}
           {error && <p className="error">{error}</p>}
           <button className="btn" type="submit" disabled={submitting}>
             {submitting ? "Joining…" : "Join"}

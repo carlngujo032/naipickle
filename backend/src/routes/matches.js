@@ -2,6 +2,16 @@ import { Router } from "express";
 import { query } from "../db.js";
 import { requireHost } from "./rooms.js";
 import { pickNextMatch, pickNextMatchRandom } from "../utils/matchmaking.js";
+import { computeLevel } from "../utils/level.js";
+
+// Add one game to the lifetime totals of every registered player in `playerIds`.
+async function updateAccountStats(playerIds, won) {
+  await query(
+    `UPDATE accounts SET games_played = games_played + 1, wins = wins + $1, losses = losses + $2
+     WHERE id IN (SELECT account_id FROM players WHERE id = ANY($3::int[]) AND account_id IS NOT NULL)`,
+    [won ? 1 : 0, won ? 0 : 1, playerIds]
+  );
+}
 
 const router = Router({ mergeParams: true });
 
@@ -20,10 +30,16 @@ router.post("/queue/next", requireHost, async (req, res) => {
   if (!court) return res.status(404).json({ error: "Court not found" });
   if (court.status === "playing") return res.status(400).json({ error: "Court already in use" });
 
-  const { rows: waiting } = await query(
-    `SELECT * FROM players WHERE room_id = $1 AND status = 'waiting'
-     ORDER BY games_played ASC, last_played_at ASC NULLS FIRST, joined_at ASC`,
+  const { rows: waitingRows } = await query(
+    `SELECT p.*, a.wins AS acc_wins, a.games_played AS acc_games
+     FROM players p LEFT JOIN accounts a ON a.id = p.account_id
+     WHERE p.room_id = $1 AND p.status = 'waiting'
+     ORDER BY p.games_played ASC, p.last_played_at ASC NULLS FIRST, p.joined_at ASC`,
     [room.id]
+  );
+  // Balanced mode uses each registered player's current level (unrated = 3)
+  const waiting = waitingRows.map((p) =>
+    p.account_id ? { ...p, skill_level: computeLevel(p.acc_wins, p.acc_games) ?? 3 } : p
   );
 
   const picked = mode === "random" ? pickNextMatchRandom(waiting) : pickNextMatch(waiting);
@@ -91,6 +107,9 @@ router.post("/matches/:matchId/finish", requireHost, async (req, res) => {
       [team1Won ? 0 : 1, team1Won ? 1 : 0, score2, score1, pid]
     );
   }
+
+  await updateAccountStats(team1, team1Won);
+  await updateAccountStats(team2, !team1Won);
 
   res.json({ ok: true });
 });

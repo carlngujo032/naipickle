@@ -1,3 +1,5 @@
+import { getAuth } from "./auth.js";
+
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:4000";
 
 async function request(path, options = {}) {
@@ -5,6 +7,8 @@ async function request(path, options = {}) {
     ...options,
     headers: {
       "Content-Type": "application/json",
+      // logged-in players send their login token with every request
+      ...(getAuth() ? { Authorization: `Bearer ${getAuth().token}` } : {}),
       ...(options.headers || {}),
     },
   });
@@ -22,6 +26,34 @@ export const api = {
     request(`/api/rooms/${code}/players`, {
       method: "POST",
       body: JSON.stringify({ name, skillLevel }),
+    }),
+  // ---- accounts
+  register: (username, displayName, password, securityQuestion, securityAnswer) =>
+    request("/api/accounts/register", {
+      method: "POST",
+      body: JSON.stringify({ username, displayName, password, securityQuestion, securityAnswer }),
+    }),
+  securityQuestion: (username) =>
+    request(`/api/accounts/security-question?username=${encodeURIComponent(username)}`),
+  resetPassword: (username, answer, newPassword) =>
+    request("/api/accounts/reset-password", { method: "POST", body: JSON.stringify({ username, answer, newPassword }) }),
+  setSecurity: (password, securityQuestion, securityAnswer) =>
+    request("/api/accounts/security", { method: "POST", body: JSON.stringify({ password, securityQuestion, securityAnswer }) }),
+  login: (username, password) =>
+    request("/api/accounts/login", { method: "POST", body: JSON.stringify({ username, password }) }),
+  logout: () => request("/api/accounts/logout", { method: "POST" }),
+  me: () => request("/api/accounts/me"),
+  listAccounts: (code, search, hostToken) =>
+    request(`/api/accounts?code=${encodeURIComponent(code)}&search=${encodeURIComponent(search || "")}`, {
+      headers: { "x-host-token": hostToken },
+    }),
+  joinRoomAsAccount: (code) =>
+    request(`/api/rooms/${code}/players`, { method: "POST", body: JSON.stringify({ asAccount: true }) }),
+  addRegisteredPlayer: (code, accountId, hostToken) =>
+    request(`/api/rooms/${code}/players`, {
+      method: "POST",
+      headers: { "x-host-token": hostToken },
+      body: JSON.stringify({ accountId }),
     }),
   removePlayer: (code, playerId, hostToken) =>
     request(`/api/rooms/${code}/players/${playerId}`, {

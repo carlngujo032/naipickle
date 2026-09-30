@@ -2,9 +2,11 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api.js";
 import { getMyRooms, removeMyRoom } from "../myRooms.js";
+import { getAuth } from "../auth.js";
 
 export default function Home() {
   const [rooms, setRooms] = useState(() => getMyRooms());
+  const me = getAuth()?.account;
   // code -> { missing: true } | { players, waiting }  (live info from the server)
   const [info, setInfo] = useState({});
 
@@ -41,6 +43,13 @@ export default function Home() {
     <div className="landing">
       <div className="landing-glow" />
       <div className="landing-content">
+        <div className="auth-bar">
+          {me ? (
+            <Link to="/profile">👤 {me.display_name}{me.level ? ` · Lv ${me.level}` : " · Unrated"}</Link>
+          ) : (
+            <Link to="/login">Log in / Sign up</Link>
+          )}
+        </div>
         <span className="landing-badge">🥒 Open Play, Organized</span>
         <h1>Pickleball<br />Open Play</h1>
         <p className="landing-sub">

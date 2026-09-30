@@ -6,7 +6,11 @@ import cors from "cors";
 import roomsRouter from "./routes/rooms.js";
 import playersRouter from "./routes/players.js";
 import matchesRouter from "./routes/matches.js";
+import accountsRouter from "./routes/accounts.js";
 
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 import { query } from "./db.js";
 import { initRealtime, notifyRoom } from "./realtime.js";
 
@@ -45,6 +49,7 @@ app.use("/api/rooms/:code", (req, res, next) => {
   next();
 });
 
+app.use("/api/accounts", accountsRouter);
 app.use("/api/rooms", roomsRouter);
 app.use("/api/rooms/:code/players", playersRouter);
 app.use("/api/rooms/:code", matchesRouter);
@@ -58,9 +63,9 @@ error: "Internal server error"
 });
 
 try {
-await query(
-"ALTER TABLE players ADD COLUMN IF NOT EXISTS player_token VARCHAR(64)"
-);
+// schema.sql is safe to re-run, so new tables (accounts, sessions) appear on deploy
+const here = path.dirname(fileURLToPath(import.meta.url));
+await query(fs.readFileSync(path.join(here, "schema.sql"), "utf8"));
 } catch (err) {
 console.error("Schema check failed:", err.message);
 }

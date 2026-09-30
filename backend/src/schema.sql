@@ -57,3 +57,29 @@ CREATE TABLE IF NOT EXISTS matches (
 CREATE INDEX IF NOT EXISTS idx_players_room ON players(room_id);
 CREATE INDEX IF NOT EXISTS idx_courts_room ON courts(room_id);
 CREATE INDEX IF NOT EXISTS idx_matches_room ON matches(room_id);
+
+-- ===== Player accounts (login + lifetime level) =====
+CREATE TABLE IF NOT EXISTS accounts (
+  id            SERIAL PRIMARY KEY,
+  username      VARCHAR(30) UNIQUE NOT NULL, -- stored lowercase
+  display_name  VARCHAR(60) NOT NULL,
+  password_hash TEXT NOT NULL,
+  games_played  INTEGER NOT NULL DEFAULT 0,
+  wins          INTEGER NOT NULL DEFAULT 0,
+  losses        INTEGER NOT NULL DEFAULT 0,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS sessions (
+  token      VARCHAR(64) PRIMARY KEY,
+  account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+ALTER TABLE players ADD COLUMN IF NOT EXISTS account_id INTEGER REFERENCES accounts(id) ON DELETE SET NULL;
+-- one room entry per account per room
+CREATE UNIQUE INDEX IF NOT EXISTS idx_players_room_account ON players(room_id, account_id) WHERE account_id IS NOT NULL;
+
+-- password reset by security question
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS security_question TEXT;
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS security_answer_hash TEXT;
