@@ -1,6 +1,10 @@
 import { useState } from "react";
+<<<<<<< HEAD
 import { useNavigate } from "react-router-dom";
 import AuthLayout from "../components/AuthLayout.jsx";
+=======
+import { Link, useNavigate } from "react-router-dom";
+>>>>>>> a3f517009490b327dc1dba091cf1048e3b9ed8ba
 import { api } from "../api.js";
 
 export default function ForgotPassword() {
@@ -41,6 +45,7 @@ export default function ForgotPassword() {
   }
 
   return (
+<<<<<<< HEAD
     <AuthLayout title="Reset your password" back="/login" backLabel="Back to log in">
       {question === null ? (
         <form onSubmit={findAccount} className="form">
@@ -68,5 +73,38 @@ export default function ForgotPassword() {
         </form>
       )}
     </AuthLayout>
+=======
+    <div className="auth-page">
+      <div className="auth-card">
+        <Link to="/login" className="back-link">← Back to log in</Link>
+        <h2>Reset your password</h2>
+        {question === null ? (
+          <form onSubmit={findAccount} className="form">
+            <p className="hint">Enter your username and we'll ask your security question.</p>
+            <label>
+              Username
+              <input value={username} onChange={(e) => setUsername(e.target.value)} autoCapitalize="none" required />
+            </label>
+            {error && <p className="error">{error}</p>}
+            <button className="btn" type="submit" disabled={submitting}>Continue</button>
+          </form>
+        ) : (
+          <form onSubmit={reset} className="form">
+            <p><strong>{question}</strong></p>
+            <label>
+              Your answer
+              <input value={answer} onChange={(e) => setAnswer(e.target.value)} autoComplete="off" required />
+            </label>
+            <label>
+              New password
+              <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} required />
+            </label>
+            {error && <p className="error">{error}</p>}
+            <button className="btn" type="submit" disabled={submitting}>Set new password</button>
+          </form>
+        )}
+      </div>
+    </div>
+>>>>>>> a3f517009490b327dc1dba091cf1048e3b9ed8ba
   );
 }

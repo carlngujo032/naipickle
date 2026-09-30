@@ -92,8 +92,11 @@ startup if it's missing, so no manual migration is needed for existing data.
 - Balanced matchmaking uses each account player's level (unrated counts as 3).
 - The new `accounts` and `sessions` tables are created automatically on backend start (or run `npm run migrate`).
 - **Forgot password:** players enter their username, answer their security question (set at sign-up, or later on their Profile page), then choose a new password.
+<<<<<<< HEAD
 
 ## UI
 
 - Mobile-first layout with a redesigned landing page, shared auth layout, and a tabbed room dashboard on phones (Courts / Queue / Players). Wide screens show everything side by side.
 - Icons come from `react-icons` (Feather set); there are no emojis in the interface. Run `npm install` in `frontend/` after pulling this update.
+=======
+>>>>>>> a3f517009490b327dc1dba091cf1048e3b9ed8ba

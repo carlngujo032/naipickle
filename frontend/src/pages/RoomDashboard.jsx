@@ -397,7 +397,47 @@ export default function RoomDashboard() {
             </section>
           </aside>
         </div>
+<<<<<<< HEAD
       </main>
+=======
+
+        <aside className="dashboard-side">
+          {isHost && !closed && (
+            <section>
+              <h3>Add Player</h3>
+              <AddPlayerForm
+                onAdd={handleAddPlayer}
+                onAddAccount={handleAddAccount}
+                loadAccounts={(s) => api.listAccounts(code, s, hostToken)}
+              />
+            </section>
+          )}
+
+          {isHost && (
+            <section>
+              <h3>Manage Players ({players.length})</h3>
+              <PlayerManageList
+                players={players}
+                onRemove={handleRemovePlayer}
+                onBreak={handleToggleBreak}
+              />
+            </section>
+          )}
+
+          <section>
+            <h3>🏆 Top Players</h3>
+            <ol className="leaderboard">
+              {leaderboard.map((p) => (
+                <li key={p.id}>
+                  {p.name} — {p.wins}W / {p.losses}L ({Math.round(p.win_rate * 100)}%)
+                </li>
+              ))}
+              {!leaderboard.length && <p className="hint">No completed games yet.</p>}
+            </ol>
+          </section>
+        </aside>
+      </div>
+>>>>>>> a3f517009490b327dc1dba091cf1048e3b9ed8ba
     </div>
   );
 }
