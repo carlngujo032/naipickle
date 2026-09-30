@@ -82,3 +82,18 @@ startup if it's missing, so no manual migration is needed for existing data.
 - QR code for room join link
 - Push/SMS notification when a player's court opens
 - DUPR-style rating import
+
+## Player accounts & levels
+
+- Players can **sign up / log in** (username + password). Guests can still join without an account.
+- **Level 1–5** comes from lifetime win rate (75%+ = 5, 60–74% = 4, 45–59% = 3, 30–44% = 2, under 30% = 1). It is recalculated after every match, so it goes up with wins and down with losses.
+- Players are **Unrated** until they finish 10 games (`MIN_RATED_GAMES` in `backend/src/utils/level.js`).
+- Logged-in players join a room as themselves. The host adds registered players from the **Add player dropdown** (or types a name to add a guest).
+- Balanced matchmaking uses each account player's level (unrated counts as 3).
+- The new `accounts` and `sessions` tables are created automatically on backend start (or run `npm run migrate`).
+- **Forgot password:** players enter their username, answer their security question (set at sign-up, or later on their Profile page), then choose a new password.
+
+## UI
+
+- Mobile-first layout with a redesigned landing page, shared auth layout, and a tabbed room dashboard on phones (Courts / Queue / Players). Wide screens show everything side by side.
+- Icons come from `react-icons` (Feather set); there are no emojis in the interface. Run `npm install` in `frontend/` after pulling this update.

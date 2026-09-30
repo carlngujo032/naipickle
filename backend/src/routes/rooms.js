@@ -2,6 +2,7 @@ import { Router } from "express";
 import bcrypt from "bcryptjs";
 import { customAlphabet } from "nanoid";
 import { query } from "../db.js";
+import { computeLevel } from "../utils/level.js";
 
 const router = Router();
 const genCode = customAlphabet("ABCDEFGHJKLMNPQRSTUVWXYZ23456789", 6);
@@ -75,12 +76,18 @@ router.get("/:code", async (req, res) => {
   const room = roomRows[0];
 
   const { rows: playerRows } = await query(
-    `SELECT * FROM players WHERE room_id = $1
-     ORDER BY games_played ASC, last_played_at ASC NULLS FIRST, joined_at ASC`,
+    `SELECT p.*, a.wins AS acc_wins, a.games_played AS acc_games
+     FROM players p LEFT JOIN accounts a ON a.id = p.account_id
+     WHERE p.room_id = $1
+     ORDER BY p.games_played ASC, p.last_played_at ASC NULLS FIRST, p.joined_at ASC`,
     [room.id]
   );
-  // player_token is a private key for that one player — don't broadcast it
-  const players = playerRows.map(({ player_token, ...p }) => p);
+  // player_token is a private key for that one player — don't broadcast it.
+  // level is only set for players with an account (null = guest or still unrated).
+  const players = playerRows.map(({ player_token, acc_wins, acc_games, ...p }) => ({
+    ...p,
+    level: p.account_id ? computeLevel(acc_wins, acc_games) : null,
+  }));
   const { rows: courts } = await query(
     "SELECT * FROM courts WHERE room_id = $1 ORDER BY court_number ASC",
     [room.id]

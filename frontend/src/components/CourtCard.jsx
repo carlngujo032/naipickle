@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { FiPlay, FiCheck, FiXCircle, FiRefreshCw } from "react-icons/fi";
 
 export default function CourtCard({ court, match, findPlayer, isHost, onNextMatch, onFinishMatch, onCancelMatch, onReassignMatch }) {
   const [score1, setScore1] = useState("");
@@ -15,74 +16,85 @@ export default function CourtCard({ court, match, findPlayer, isHost, onNextMatc
 
   return (
     <div className={`court-card ${court.status}`}>
-      <h4>Court {court.court_number}</h4>
+      <div className="court-head">
+        <h4>Court {court.court_number}</h4>
+        <span className={`pill ${match ? "live" : ""}`}>{match ? "In play" : "Open"}</span>
+      </div>
       {match ? (
         <div>
           <div className="team-row">
-            <p className="team">🟦 {teamName(match.team1_p1)} & {teamName(match.team1_p2)}</p>
+            <span className="team-dot t1" />
+            <p className="team">{teamName(match.team1_p1)} &amp; {teamName(match.team1_p2)}</p>
             {isHost && (
               <input
                 className="score-input"
+                inputMode="numeric"
                 placeholder="0"
+                aria-label="Team 1 score"
                 value={score1}
-                onChange={(e) => setScore1(e.target.value)}
+                onChange={(e) => setScore1(e.target.value.replace(/\D/g, ""))}
               />
             )}
           </div>
-          <p className="vs">vs</p>
+          <div className="vs"><span>vs</span></div>
           <div className="team-row">
-            <p className="team">🟥 {teamName(match.team2_p1)} & {teamName(match.team2_p2)}</p>
+            <span className="team-dot t2" />
+            <p className="team">{teamName(match.team2_p1)} &amp; {teamName(match.team2_p2)}</p>
             {isHost && (
               <input
                 className="score-input"
+                inputMode="numeric"
                 placeholder="0"
+                aria-label="Team 2 score"
                 value={score2}
-                onChange={(e) => setScore2(e.target.value)}
+                onChange={(e) => setScore2(e.target.value.replace(/\D/g, ""))}
               />
             )}
           </div>
           {isHost && (
             <div className="court-actions">
               <button
-                className="btn tiny finish-btn"
+                className="btn block"
                 onClick={() => onFinishMatch(match.id, score1 || 0, score2 || 0, match.court_id)}
                 disabled={score1 === "" || score2 === ""}
               >
-                Finish &amp; Start Next
+                <FiCheck aria-hidden="true" /> Finish &amp; start next
               </button>
-              <button
-                className="btn tiny cancel-btn"
-                onClick={() => {
-                  if (window.confirm("Cancel this match? Players return to the queue and no score is recorded.")) {
-                    onCancelMatch(match.id);
-                  }
-                }}
-              >
-                Cancel Match
-              </button>
-              <button
-                className="btn tiny reassign-btn"
-                onClick={() => {
-                  if (
-                    window.confirm(
-                      "Re-assign this match? The current match will be cancelled (no score recorded) and a new match will be created for this court."
-                    )
-                  ) {
-                    onReassignMatch(match.id, match.court_id);
-                  }
-                }}
-              >
-                Re-assign
-              </button>
+              <div className="court-actions-row">
+                <button
+                  className="btn tiny secondary"
+                  onClick={() => {
+                    if (window.confirm("Cancel this match? Players return to the queue and no score is recorded.")) {
+                      onCancelMatch(match.id);
+                    }
+                  }}
+                >
+                  <FiXCircle aria-hidden="true" /> Cancel
+                </button>
+                <button
+                  className="btn tiny secondary"
+                  onClick={() => {
+                    if (
+                      window.confirm(
+                        "Re-assign this match? The current match will be cancelled (no score recorded) and a new match will be created for this court."
+                      )
+                    ) {
+                      onReassignMatch(match.id, match.court_id);
+                    }
+                  }}
+                >
+                  <FiRefreshCw aria-hidden="true" /> Re-assign
+                </button>
+              </div>
             </div>
           )}
         </div>
       ) : (
         <div>
-          <p className="hint">Empty</p>
+          <p className="hint">No match on this court.</p>
           {isHost && (
-            <button className="btn tiny" onClick={onNextMatch}>
-              Assign Next 4
+            <button className="btn block" onClick={onNextMatch}>
+              <FiPlay aria-hidden="true" /> Assign next 4
             </button>
           )}
         </div>

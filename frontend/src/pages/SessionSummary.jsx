@@ -1,7 +1,9 @@
 import { useEffect, useState, useCallback } from "react";
 import { Link, useParams } from "react-router-dom";
+import { FiArrowLeft, FiAward, FiActivity, FiRotateCcw } from "react-icons/fi";
 import { api } from "../api.js";
 import { useRoomLive } from "../useRoomLive.js";
+import Loading from "../components/Loading.jsx";
 
 function formatMinutes(m) {
   if (m == null) return "—";
@@ -52,11 +54,11 @@ export default function SessionSummary() {
     return (
       <div className="page">
         <p className="error">{error}</p>
-        <Link to="/" className="back-link">← Back to Your Rooms</Link>
+        <Link to="/" className="back-link"><FiArrowLeft aria-hidden="true" /> Back to your rooms</Link>
       </div>
     );
   }
-  if (!s) return <div className="page">Loading…</div>;
+  if (!s) return <Loading />;
 
   const { room, totals, topPlayers, mostGames, attendance } = s;
   const ended = room.status === "closed";
@@ -64,16 +66,16 @@ export default function SessionSummary() {
 
   return (
     <div className="page summary-page">
-      <Link to={`/room/${code}`} className="back-link">← Back to the room</Link>
-      <h2>
-        {room.title} <span className="code">#{room.code}</span>
-      </h2>
+      <Link to={`/room/${code}`} className="back-link"><FiArrowLeft aria-hidden="true" /> Back to the room</Link>
+      <h2>{room.title} <span className="code">#{room.code}</span></h2>
       <p className="hint">
-        {ended ? "Session ended — final summary." : "Session still running — this is the summary so far."}
-        {isHost && ended && (
-          <button className="btn tiny secondary" onClick={handleReopen}>Reopen session</button>
-        )}
+        {ended ? "Session ended. This is the final summary." : "Session still running. This is the summary so far."}
       </p>
+      {isHost && ended && (
+        <button className="btn tiny secondary" onClick={handleReopen}>
+          <FiRotateCcw aria-hidden="true" /> Reopen session
+        </button>
+      )}
 
       <div className="summary-tiles">
         <div className="tile"><strong>{totals.players}</strong><span>players came</span></div>
@@ -83,25 +85,25 @@ export default function SessionSummary() {
       </div>
 
       {totals.matches === 0 ? (
-        <p className="hint">No completed games yet — highlights will show up here.</p>
+        <p className="hint">No completed games yet. Highlights will show up here.</p>
       ) : (
         <div className="summary-highlights">
           <div className="highlight">
-            <span className="highlight-label">🏆 Top Player{topPlayers.length > 1 ? "s (tied)" : ""}</span>
+            <span className="highlight-label"><FiAward aria-hidden="true" /> Top player{topPlayers.length > 1 ? "s (tied)" : ""}</span>
             <strong>{names(topPlayers)}</strong>
             <span className="highlight-detail">
-              {top.wins}W–{top.losses}L · {pct(top.win_rate)} win rate
+              {top.wins}W {top.losses}L · {pct(top.win_rate)} win rate
             </span>
           </div>
           <div className="highlight">
-            <span className="highlight-label">🎾 Most Games Played</span>
+            <span className="highlight-label"><FiActivity aria-hidden="true" /> Most games played</span>
             <strong>{names(mostGames.players)}</strong>
             <span className="highlight-detail">{mostGames.games} games{mostGames.players.length > 1 ? " each" : ""}</span>
           </div>
         </div>
       )}
 
-      <h3>Attendance ({totals.players})</h3>
+      <h3>Attendance <span className="count">{totals.players}</span></h3>
       <div className="table-scroll">
         <table className="summary-table">
           <thead>

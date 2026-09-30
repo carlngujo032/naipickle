@@ -1,7 +1,10 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { api } from "../api.js";
+import { FiCoffee, FiAward } from "react-icons/fi";
 import { useRoomLive } from "../useRoomLive.js";
+import LiveBadge from "../components/LiveBadge.jsx";
+import { BallMark } from "../components/Brand.jsx";
 
 const minutesSince = (iso) => Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 60000));
 
@@ -49,17 +52,15 @@ export default function TVBoard() {
   return (
     <div className="tv">
       <header className="tv-header">
-        <h1>{room.title}</h1>
+        <h1><BallMark size={40} /> {room.title}</h1>
         <div className="tv-meta">
           <span className="tv-code">Room code <strong>{room.code}</strong></span>
-          <span className={`live-badge ${connected ? "on" : "off"}`}>
-            {connected ? "● Live" : "○ Reconnecting…"}
-          </span>
+          <LiveBadge connected={connected} />
         </div>
       </header>
 
       {room.status === "closed" && (
-        <div className="tv-ended">Session ended — thanks for playing! 🥒</div>
+        <div className="tv-ended">Session ended. Thanks for playing!</div>
       )}
 
       <div className="tv-body">
@@ -76,9 +77,9 @@ export default function TVBoard() {
                   </div>
                   {m ? (
                     <>
-                      <div className="tv-team">🟦 {name(m.team1_p1)} &amp; {name(m.team1_p2)}</div>
+                      <div className="tv-team"><span className="team-dot t1" />{name(m.team1_p1)} &amp; {name(m.team1_p2)}</div>
                       <div className="tv-vs">vs</div>
-                      <div className="tv-team">🟥 {name(m.team2_p1)} &amp; {name(m.team2_p2)}</div>
+                      <div className="tv-team"><span className="team-dot t2" />{name(m.team2_p1)} &amp; {name(m.team2_p2)}</div>
                     </>
                   ) : (
                     <div className="tv-open">Open</div>
@@ -96,7 +97,7 @@ export default function TVBoard() {
               <ol className="tv-queue">
                 {nextFour.map((p, i) => (
                   <li key={p.id} className="next">
-                    <span className="tv-pos">{i + 1}</span> {p.name}
+                    <span className="tv-pos">{i + 1}</span> {p.name}{p.account_id && <span className={`level-badge lv-${p.level || 0}`}>{p.level ? `Lv ${p.level}` : "Unrated"}</span>}
                   </li>
                 ))}
                 {afterThat.map((p, i) => (
@@ -110,18 +111,18 @@ export default function TVBoard() {
             )}
             {queue.length > 12 && <p className="tv-muted">+ {queue.length - 12} more</p>}
             {onBreak.length > 0 && (
-              <p className="tv-muted">☕ On break: {onBreak.map((p) => p.name).join(", ")}</p>
+              <p className="tv-muted"><FiCoffee aria-hidden="true" /> On break: {onBreak.map((p) => p.name).join(", ")}</p>
             )}
           </section>
 
           <section className="tv-panel">
-            <h2>🏆 Top Players</h2>
+            <h2><FiAward aria-hidden="true" /> Top players</h2>
             {leaderboard.length ? (
               <ol className="tv-queue">
                 {leaderboard.slice(0, 5).map((p, i) => (
                   <li key={p.id}>
                     <span className="tv-pos">{i + 1}</span> {p.name}
-                    <span className="tv-record">{p.wins}W–{p.losses}L</span>
+                    <span className="tv-record">{p.wins}W {p.losses}L</span>
                   </li>
                 ))}
               </ol>

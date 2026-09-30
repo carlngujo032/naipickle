@@ -12,8 +12,8 @@ export default function PairingProgress({ progress }) {
         <div className="pairing-bar-fill" style={{ width: `${pct}%` }} />
       </div>
       <p className="pairing-label">
-        {uniquePairsPlayed} / {totalPossiblePairs} unique partner pairings played
-        {complete && " — everyone has partnered with everyone! 🎉"}
+        {uniquePairsPlayed} of {totalPossiblePairs} unique partner pairings played
+        {complete && ". Everyone has partnered with everyone."}
       </p>
     </div>
   );

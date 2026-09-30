@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { api } from "../api.js";
 import { saveMyRoom } from "../myRooms.js";
+import AuthLayout from "../components/AuthLayout.jsx";
 
 export default function CreateRoom() {
   const [title, setTitle] = useState("");
@@ -36,34 +37,31 @@ export default function CreateRoom() {
   }
 
   return (
-    <div className="auth-page">
-      <div className="auth-card">
-        <Link to="/" className="back-link">← Back</Link>
-        <h2>Create a Room</h2>
-        <p className="hint">Set it up, share the code, and start the queue.</p>
-        <form onSubmit={handleSubmit} className="form">
+    <AuthLayout title="Create a room" subtitle="Set it up, share the code, and start the queue.">
+      <form onSubmit={handleSubmit} className="form">
+        <label>
+          Title
+          <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Saturday open play" required />
+        </label>
+        <label>
+          Password (optional)
+          <input value={password} onChange={(e) => setPassword(e.target.value)} />
+        </label>
+        <div className="field-row">
           <label>
-            Title
-            <input value={title} onChange={(e) => setTitle(e.target.value)} required />
+            Max players
+            <input type="number" inputMode="numeric" min={4} value={maxPlayers} onChange={(e) => setMaxPlayers(e.target.value)} />
           </label>
           <label>
-            Password (optional)
-            <input value={password} onChange={(e) => setPassword(e.target.value)} />
+            Courts
+            <input type="number" inputMode="numeric" min={1} value={maxCourts} onChange={(e) => setMaxCourts(e.target.value)} />
           </label>
-          <label>
-            Max Players
-            <input type="number" min={4} value={maxPlayers} onChange={(e) => setMaxPlayers(e.target.value)} />
-          </label>
-          <label>
-            Number of Courts
-            <input type="number" min={1} value={maxCourts} onChange={(e) => setMaxCourts(e.target.value)} />
-          </label>
-          {error && <p className="error">{error}</p>}
-          <button className="btn" type="submit" disabled={submitting}>
-            {submitting ? "Creating…" : "Create Room"}
-          </button>
-        </form>
-      </div>
-    </div>
+        </div>
+        {error && <p className="error">{error}</p>}
+        <button className="btn block" type="submit" disabled={submitting}>
+          {submitting ? "Creating…" : "Create room"}
+        </button>
+      </form>
+    </AuthLayout>
   );
 }
