@@ -7,7 +7,6 @@ import {
 import { api } from "../api.js";
 import { getMyRooms, removeMyRoom } from "../myRooms.js";
 import { getAuth } from "../auth.js";
-<<<<<<< HEAD
 import Brand from "../components/Brand.jsx";
 
 const STEPS = [
@@ -25,8 +24,6 @@ const FEATURES = [
   { icon: FiBarChart2, title: "Session summary", text: "Top player, most games played and attendance, ready when the session ends." },
   { icon: FiCoffee, title: "Break mode", text: "Players can sit out a round and keep their stats. Matchmaking skips them until they return." },
 ];
-=======
->>>>>>> a3f517009490b327dc1dba091cf1048e3b9ed8ba
 
 export default function Home() {
   const [rooms, setRooms] = useState(() => getMyRooms());
@@ -64,7 +61,6 @@ export default function Home() {
   }
 
   return (
-<<<<<<< HEAD
     <div className="site">
       <header className="site-nav">
         <Brand light />
@@ -79,24 +75,6 @@ export default function Home() {
           )}
         </nav>
       </header>
-=======
-    <div className="landing">
-      <div className="landing-glow" />
-      <div className="landing-content">
-        <div className="auth-bar">
-          {me ? (
-            <Link to="/profile">👤 {me.display_name}{me.level ? ` · Lv ${me.level}` : " · Unrated"}</Link>
-          ) : (
-            <Link to="/login">Log in / Sign up</Link>
-          )}
-        </div>
-        <span className="landing-badge">🥒 Open Play, Organized</span>
-        <h1>Pickleball<br />Open Play</h1>
-        <p className="landing-sub">
-          Run the queue, courts, and partner mixing for your open play
-          session — no more whiteboards, no more "who's next?"
-        </p>
->>>>>>> a3f517009490b327dc1dba091cf1048e3b9ed8ba
 
       <section className="hero">
         <div className="hero-inner">

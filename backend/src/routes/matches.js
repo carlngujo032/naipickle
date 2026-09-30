@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { query } from "../db.js";
 import { requireHost } from "./rooms.js";
-import { pickNextMatch, pickNextMatchRandom } from "../utils/matchmaking.js";
+import { pickNextMatch, pickNextMatchRandom, buildUsedPairs } from "../utils/matchmaking.js";
 import { computeLevel } from "../utils/level.js";
 
 // Add one game to the lifetime totals of every registered player in `playerIds`.
@@ -42,7 +42,17 @@ router.post("/queue/next", requireHost, async (req, res) => {
     p.account_id ? { ...p, skill_level: computeLevel(p.acc_wins, p.acc_games) ?? 3 } : p
   );
 
-  const picked = mode === "random" ? pickNextMatchRandom(waiting) : pickNextMatch(waiting);
+  // Teammate pairs already used in this room (finished or currently playing),
+  // so the same two players are never put on the same team twice.
+  const { rows: pastMatches } = await query(
+    `SELECT team1_p1, team1_p2, team2_p1, team2_p2 FROM matches
+     WHERE room_id = $1 AND status IN ('finished', 'in_progress')`,
+    [room.id]
+  );
+  const usedPairs = buildUsedPairs(pastMatches);
+
+  const picked =
+    mode === "random" ? pickNextMatchRandom(waiting, usedPairs) : pickNextMatch(waiting, usedPairs);
   if (!picked) return res.status(400).json({ error: "Not enough players in queue (need 4)" });
 
   const { team1, team2 } = picked;
@@ -60,7 +70,11 @@ router.post("/queue/next", requireHost, async (req, res) => {
     [allIds]
   );
 
-  res.status(201).json({ match: matchRows[0] });
+  res.status(201).json({
+    match: matchRows[0],
+    // > 0 only when every possible arrangement repeats a partner
+    repeatedPartners: picked.repeats,
+  });
 });
 
 // POST /api/rooms/:code/matches/:matchId/finish — report score, return players to queue
