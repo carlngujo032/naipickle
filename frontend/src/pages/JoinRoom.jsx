@@ -55,7 +55,6 @@ export default function JoinRoom() {
   }
 
   return (
-<<<<<<< HEAD
     <AuthLayout title="Join a room" subtitle="Enter the room code your host shared with you.">
       <form onSubmit={handleSubmit} className="form">
         <label>
@@ -102,51 +101,5 @@ export default function JoinRoom() {
         </button>
       </form>
     </AuthLayout>
-=======
-    <div className="auth-page">
-      <div className="auth-card">
-        <Link to="/" className="back-link">← Back</Link>
-        <h2>Join a Room</h2>
-        <p className="hint">Enter the room code your host shared with you.</p>
-        <form onSubmit={handleSubmit} className="form">
-          <label>
-            Room Code
-            <input value={code} onChange={(e) => setCode(e.target.value)} required />
-          </label>
-          <label>
-            Password (if required)
-            <input value={password} onChange={(e) => setPassword(e.target.value)} />
-          </label>
-          {me ? (
-            <p className="hint">
-              Joining as <strong>{me.display_name}</strong>{" "}
-              {me.level ? `(Level ${me.level})` : "(Unrated)"}
-            </p>
-          ) : (
-            <>
-              <label>
-                Your Name
-                <input value={name} onChange={(e) => setName(e.target.value)} required />
-              </label>
-              <label>
-                Skill Level (2.0–5.0)
-                <input
-                  type="number" step="0.5" min={2} max={5}
-                  value={skillLevel} onChange={(e) => setSkillLevel(e.target.value)}
-                />
-              </label>
-              <p className="hint">
-                <Link to="/login?next=/join">Log in</Link> to play with your own level and stats.
-              </p>
-            </>
-          )}
-          {error && <p className="error">{error}</p>}
-          <button className="btn" type="submit" disabled={submitting}>
-            {submitting ? "Joining…" : "Join"}
-          </button>
-        </form>
-      </div>
-    </div>
->>>>>>> a3f517009490b327dc1dba091cf1048e3b9ed8ba
   );
 }

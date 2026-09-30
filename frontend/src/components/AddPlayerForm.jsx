@@ -1,8 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-<<<<<<< HEAD
 import { FiSearch, FiUserPlus } from "react-icons/fi";
-=======
->>>>>>> a3f517009490b327dc1dba091cf1048e3b9ed8ba
 import LevelBadge from "./LevelBadge.jsx";
 
 // Host's "Add player": type to search registered players, pick one from the
@@ -66,14 +63,9 @@ export default function AddPlayerForm({ onAdd, onAddAccount, loadAccounts }) {
   return (
     <form onSubmit={addGuest} className="add-player-form" ref={boxRef}>
       <div className="combo">
-<<<<<<< HEAD
         <FiSearch className="combo-icon" aria-hidden="true" />
         <input
           placeholder="Search registered players"
-=======
-        <input
-          placeholder="Pick or type a player…"
->>>>>>> a3f517009490b327dc1dba091cf1048e3b9ed8ba
           value={text}
           onChange={(e) => { setText(e.target.value); setOpen(true); }}
           onFocus={() => setOpen(true)}
@@ -92,7 +84,6 @@ export default function AddPlayerForm({ onAdd, onAddAccount, loadAccounts }) {
           </ul>
         )}
       </div>
-<<<<<<< HEAD
       <div className="guest-row">
         <label className="guest-skill">
           Guest skill
@@ -107,17 +98,6 @@ export default function AddPlayerForm({ onAdd, onAddAccount, loadAccounts }) {
           <FiUserPlus aria-hidden="true" /> Add as guest
         </button>
       </div>
-=======
-      <input
-        type="number" step="0.5" min={2} max={5}
-        title="Guest skill level (2.0–5.0) — only used for guests without an account"
-        value={skillLevel}
-        onChange={(e) => setSkillLevel(e.target.value)}
-      />
-      <button className="btn tiny" type="submit" disabled={submitting || !text.trim()} title="Add the typed name as a guest">
-        Add guest
-      </button>
->>>>>>> a3f517009490b327dc1dba091cf1048e3b9ed8ba
     </form>
   );
 }
