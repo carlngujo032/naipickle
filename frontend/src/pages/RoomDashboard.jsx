@@ -14,6 +14,7 @@ import PlayerManageList from "../components/PlayerManageList.jsx";
 import PairingProgress from "../components/PairingProgress.jsx";
 import NextUpCard from "../components/NextUpCard.jsx";
 import RoundCard from "../components/RoundCard.jsx";
+import ReplacePlayerDialog from "../components/ReplacePlayerDialog.jsx";
 import MyStatus from "../components/MyStatus.jsx";
 import LiveBadge from "../components/LiveBadge.jsx";
 import Loading from "../components/Loading.jsx";
@@ -30,6 +31,8 @@ export default function RoomDashboard() {
   const [copied, setCopied] = useState(false);
   // Shuffle position for the "Next up" preview; resets when the four players change
   const [shuffle, setShuffle] = useState({ sig: "", n: 0 });
+  // { match, playerId } while the "replace a player" dialog is open
+  const [replacing, setReplacing] = useState(null);
   const noticeTimer = useRef(null);
   const loaded = useRef(false);
   const hostToken = localStorage.getItem(`host_${code}`);
@@ -152,7 +155,8 @@ export default function RoomDashboard() {
 
   async function handleCancelMatch(matchId) {
     try {
-      await api.cancelMatch(code, matchId, hostToken);
+      // the Next up match on screen (if any) takes this court right away
+      await api.cancelMatch(code, matchId, hostToken, shownNextTeams());
       refresh();
     } catch (err) {
       showNotice(err.message);
@@ -330,6 +334,21 @@ export default function RoomDashboard() {
           />
         )}
 
+        {replacing && (
+          <ReplacePlayerDialog
+            code={code}
+            hostToken={hostToken}
+            match={replacing.match}
+            outPlayerId={replacing.playerId}
+            nextUpIds={new Set([...(data.nextUp?.options?.[0]?.team1 || []), ...(data.nextUp?.options?.[0]?.team2 || [])])}
+            onClose={() => setReplacing(null)}
+            onDone={() => {
+              setReplacing(null);
+              refresh();
+            }}
+          />
+        )}
+
         <div className="tabs" role="tablist">
           {TABS.map((t) => (
             <button
@@ -372,6 +391,7 @@ export default function RoomDashboard() {
                       onFinishMatch={handleFinishMatch}
                       onCancelMatch={handleCancelMatch}
                       onReassignMatch={handleReassignMatch}
+                      onReplacePlayer={(m, playerId) => setReplacing({ match: m, playerId })}
                     />
                   );
                 })}

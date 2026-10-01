@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { query } from "../db.js";
 import { requireHost } from "./rooms.js";
-import { pickNextMatchRandom, pairKey, matchSignature } from "../utils/matchmaking.js";
+import { pickNextMatchRandom, pairKey, matchSignature, buildUsedPairs } from "../utils/matchmaking.js";
 import { getNextUp, BLOCKED_MESSAGES } from "../utils/nextUp.js";
 
 // Add one game to the lifetime totals of every registered player in `playerIds`.
@@ -155,8 +155,11 @@ router.post("/matches/:matchId/finish", requireHost, async (req, res) => {
 });
 
 // POST /api/rooms/:code/matches/:matchId/cancel — cancel an in-progress match
-// (e.g. a player backed out). No stats are recorded; all 4 players return to
-// the queue exactly as they were, and the court opens back up.
+// (e.g. a player backed out). No stats are recorded; the 4 players go back to
+// the queue exactly as they were and the court opens up. If a "Next up" match
+// is ready (4+ other players waiting), it takes the court right away — the
+// cancelled players then wait for the next free court.
+// body (optional): { team1, team2 } — the Next up teams the host is looking at
 router.post("/matches/:matchId/cancel", requireHost, async (req, res) => {
   const { matchId } = req.params;
   const room = req.room;
@@ -177,7 +180,144 @@ router.post("/matches/:matchId/cancel", requireHost, async (req, res) => {
   await query("UPDATE courts SET status = 'empty' WHERE id = $1", [match.court_id]);
   await query(`UPDATE players SET status = 'waiting' WHERE id = ANY($1::int[])`, [allIds]);
 
-  res.json({ ok: true });
+  // Is a Next up match ready WITHOUT the players who were just cancelled?
+  let replacement = null;
+  if (room.status === "open") {
+    const { rows: waitingRows } = await query(
+      `SELECT p.*, a.wins AS acc_wins, a.games_played AS acc_games
+       FROM players p LEFT JOIN accounts a ON a.id = p.account_id
+       WHERE p.room_id = $1 AND p.status = 'waiting' AND NOT (p.id = ANY($2::int[]))
+       ORDER BY p.games_played ASC, p.last_played_at ASC NULLS FIRST, p.joined_at ASC`,
+      [room.id, allIds]
+    );
+    const { rows: activeRows } = await query(
+      "SELECT id, skill_level FROM players WHERE room_id = $1 AND status IN ('waiting', 'playing')",
+      [room.id]
+    );
+    const { waiting, options } = await getNextUp(room, waitingRows, activeRows);
+    if (options.length) {
+      const sent = validTeams(req.body?.team1, req.body?.team2, waiting);
+      const pick = sent || options[0];
+      replacement = await bookMatch(room, match.court_id, pick.team1, pick.team2);
+    }
+  }
+
+  res.json({ ok: true, replaced: Boolean(replacement), match: replacement });
+});
+
+// Columns of a match row that hold a player, in team order.
+const SLOTS = ["team1_p1", "team1_p2", "team2_p1", "team2_p2"];
+
+function partnerSlot(slot) {
+  return { team1_p1: "team1_p2", team1_p2: "team1_p1", team2_p1: "team2_p2", team2_p2: "team2_p1" }[slot];
+}
+
+async function loadActiveMatchAndSlot(req, res) {
+  const matchId = Number(req.params.matchId);
+  const outPlayerId = Number(req.query.outPlayerId ?? req.body?.outPlayerId);
+  if (!Number.isInteger(matchId) || !Number.isInteger(outPlayerId)) {
+    res.status(400).json({ error: "Invalid match or player" });
+    return null;
+  }
+  const { rows } = await query(
+    "SELECT * FROM matches WHERE id = $1 AND room_id = $2 AND status = 'in_progress'",
+    [matchId, req.room.id]
+  );
+  const match = rows[0];
+  if (!match) {
+    res.status(404).json({ error: "Active match not found" });
+    return null;
+  }
+  const slot = SLOTS.find((c) => match[c] === outPlayerId);
+  if (!slot) {
+    res.status(400).json({ error: "That player is not in this match" });
+    return null;
+  }
+  return { match, slot, outPlayerId };
+}
+
+// GET /api/rooms/:code/matches/:matchId/replace-options?outPlayerId=ID
+// Who could step in for a player who has to leave a game in progress. Players
+// who would NOT repeat a partner come first; both groups keep queue order.
+router.get("/matches/:matchId/replace-options", requireHost, async (req, res) => {
+  const found = await loadActiveMatchAndSlot(req, res);
+  if (!found) return;
+  const { match, slot } = found;
+  const room = req.room;
+  const partnerId = match[partnerSlot(slot)];
+
+  const { rows: waiting } = await query(
+    `SELECT id, name, games_played FROM players
+     WHERE room_id = $1 AND status = 'waiting'
+     ORDER BY games_played ASC, last_played_at ASC NULLS FIRST, joined_at ASC`,
+    [room.id]
+  );
+  // Partner history this round, not counting the match being changed
+  const { rows: pastRows } = await query(
+    `SELECT team1_p1, team1_p2, team2_p1, team2_p2 FROM matches
+     WHERE room_id = $1 AND round_number = $2 AND status IN ('finished', 'in_progress') AND id <> $3`,
+    [room.id, room.round_number, match.id]
+  );
+  const used = buildUsedPairs(pastRows);
+  const { rows: names } = await query(
+    "SELECT id, name FROM players WHERE id = ANY($1::int[])",
+    [[found.outPlayerId, partnerId]]
+  );
+  const nameOf = (id) => names.find((n) => n.id === id)?.name ?? "";
+
+  const candidates = waiting.map((p) => ({ ...p, repeat: used.has(pairKey(p.id, partnerId)) }));
+  candidates.sort((a, b) => Number(a.repeat) - Number(b.repeat)); // stable: queue order kept
+  res.json({
+    out: { id: found.outPlayerId, name: nameOf(found.outPlayerId) },
+    partner: { id: partnerId, name: nameOf(partnerId) },
+    candidates,
+  });
+});
+
+// POST /api/rooms/:code/matches/:matchId/replace
+// body: { outPlayerId, inPlayerId, outStatus: 'waiting' | 'break' | 'inactive' }
+// Swap ONE player in a game in progress; the other three keep playing. The
+// player who leaves gets no stats for this game, the replacement gets the
+// result when the match finishes.
+router.post("/matches/:matchId/replace", requireHost, async (req, res) => {
+  const found = await loadActiveMatchAndSlot(req, res);
+  if (!found) return;
+  const { match, slot, outPlayerId } = found;
+  const room = req.room;
+
+  const inPlayerId = Number(req.body.inPlayerId);
+  const outStatus = req.body.outStatus || "waiting";
+  if (!Number.isInteger(inPlayerId)) return res.status(400).json({ error: "Choose who steps in" });
+  if (!["waiting", "break", "inactive"].includes(outStatus)) {
+    return res.status(400).json({ error: "Invalid status for the player leaving" });
+  }
+
+  // Claim the replacement atomically: they must still be waiting in this room
+  const { rows: claimed } = await query(
+    `UPDATE players SET status = 'playing'
+     WHERE id = $1 AND room_id = $2 AND status = 'waiting' RETURNING id`,
+    [inPlayerId, room.id]
+  );
+  if (!claimed.length) {
+    return res.status(409).json({ error: "That player is no longer waiting in the queue" });
+  }
+
+  // `slot` comes from our own fixed list, never from the request
+  const { rows } = await query(
+    `UPDATE matches SET ${slot} = $1 WHERE id = $2 AND status = 'in_progress' RETURNING *`,
+    [inPlayerId, match.id]
+  );
+  if (!rows.length) {
+    await query("UPDATE players SET status = 'waiting' WHERE id = $1", [inPlayerId]);
+    return res.status(409).json({ error: "The match just ended" });
+  }
+  await query("UPDATE players SET status = $1 WHERE id = $2 AND room_id = $3", [
+    outStatus,
+    outPlayerId,
+    room.id,
+  ]);
+
+  res.json({ ok: true, match: rows[0] });
 });
 
 // POST /api/rooms/:code/matches/:matchId/reassign — swap an in-progress match

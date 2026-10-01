@@ -86,16 +86,29 @@ export const api = {
       method: "POST",
       headers: { "x-host-token": hostToken },
     }),
+  // Replace ONE player in a game in progress (the other three keep playing)
+  replaceOptions: (code, matchId, outPlayerId, hostToken) =>
+    request(`/api/rooms/${code}/matches/${matchId}/replace-options?outPlayerId=${outPlayerId}`, {
+      headers: { "x-host-token": hostToken },
+    }),
+  replacePlayer: (code, matchId, body, hostToken) =>
+    request(`/api/rooms/${code}/matches/${matchId}/replace`, {
+      method: "POST",
+      headers: { "x-host-token": hostToken },
+      body: JSON.stringify(body),
+    }),
   // Swap an in-progress match for a different one on the same court
   reassignMatch: (code, matchId, hostToken) =>
     request(`/api/rooms/${code}/matches/${matchId}/reassign`, {
       method: "POST",
       headers: { "x-host-token": hostToken },
     }),
-  cancelMatch: (code, matchId, hostToken) =>
+  // `teams` = the "Next up" teams on screen; they take the court if ready
+  cancelMatch: (code, matchId, hostToken, teams = null) =>
     request(`/api/rooms/${code}/matches/${matchId}/cancel`, {
       method: "POST",
       headers: { "x-host-token": hostToken },
+      body: JSON.stringify(teams || {}),
     }),
   setBreak: (code, playerId, onBreak, { hostToken, playerToken } = {}) =>
     request(`/api/rooms/${code}/players/${playerId}/break`, {

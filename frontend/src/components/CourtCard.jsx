@@ -1,18 +1,29 @@
 import { useState, useEffect } from "react";
-import { FiPlay, FiCheck, FiXCircle, FiRefreshCw } from "react-icons/fi";
+import { FiPlay, FiCheck, FiXCircle, FiRefreshCw, FiUserMinus } from "react-icons/fi";
 
-export default function CourtCard({ court, match, findPlayer, isHost, onNextMatch, onFinishMatch, onCancelMatch, onReassignMatch }) {
+export default function CourtCard({ court, match, findPlayer, isHost, onNextMatch, onFinishMatch, onCancelMatch, onReassignMatch, onReplacePlayer }) {
   const [score1, setScore1] = useState("");
   const [score2, setScore2] = useState("");
+  const [picking, setPicking] = useState(false); // "who is leaving?" list
 
   // Reset the score boxes whenever the match on this court changes (new
   // match assigned, or court goes back to empty) so old scores don't linger.
   useEffect(() => {
     setScore1("");
     setScore2("");
+    setPicking(false);
   }, [match?.id]);
 
   const teamName = (id) => findPlayer(id)?.name || "…";
+  // Host can tap a name to replace that one player (e.g. someone has to leave)
+  const who = (id) =>
+    isHost && onReplacePlayer ? (
+      <button className="name-btn" title="Replace this player" onClick={() => onReplacePlayer(match, id)}>
+        {teamName(id)}
+      </button>
+    ) : (
+      teamName(id)
+    );
 
   return (
     <div className={`court-card ${court.status}`}>
@@ -24,7 +35,7 @@ export default function CourtCard({ court, match, findPlayer, isHost, onNextMatc
         <div>
           <div className="team-row">
             <span className="team-dot t1" />
-            <p className="team">{teamName(match.team1_p1)} &amp; {teamName(match.team1_p2)}</p>
+            <p className="team">{who(match.team1_p1)} &amp; {who(match.team1_p2)}</p>
             {isHost && (
               <input
                 className="score-input"
@@ -39,7 +50,7 @@ export default function CourtCard({ court, match, findPlayer, isHost, onNextMatc
           <div className="vs"><span>vs</span></div>
           <div className="team-row">
             <span className="team-dot t2" />
-            <p className="team">{teamName(match.team2_p1)} &amp; {teamName(match.team2_p2)}</p>
+            <p className="team">{who(match.team2_p1)} &amp; {who(match.team2_p2)}</p>
             {isHost && (
               <input
                 className="score-input"
@@ -64,7 +75,7 @@ export default function CourtCard({ court, match, findPlayer, isHost, onNextMatc
                 <button
                   className="btn tiny secondary"
                   onClick={() => {
-                    if (window.confirm("Cancel this match? Players return to the queue and no score is recorded.")) {
+                    if (window.confirm("Cancel this match? No score is recorded. These players go back to the queue, and the Next up match (if one is ready) takes this court.")) {
                       onCancelMatch(match.id);
                     }
                   }}
@@ -86,6 +97,30 @@ export default function CourtCard({ court, match, findPlayer, isHost, onNextMatc
                   <FiRefreshCw aria-hidden="true" /> Re-assign
                 </button>
               </div>
+              {onReplacePlayer && (
+                <>
+                  <button className="btn tiny secondary block" onClick={() => setPicking((v) => !v)} aria-expanded={picking}>
+                    <FiUserMinus aria-hidden="true" /> Replace one player
+                  </button>
+                  {picking && (
+                    <div className="replace-picker">
+                      <p className="hint">Who is leaving? The other three keep playing.</p>
+                      {[match.team1_p1, match.team1_p2, match.team2_p1, match.team2_p2].map((id, i) => (
+                        <button
+                          key={id}
+                          className="btn tiny secondary"
+                          onClick={() => {
+                            setPicking(false);
+                            onReplacePlayer(match, id);
+                          }}
+                        >
+                          <span className={`team-dot ${i < 2 ? "t1" : "t2"}`} /> {teamName(id)}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           )}
         </div>
