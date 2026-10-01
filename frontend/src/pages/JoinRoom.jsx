@@ -1,12 +1,13 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import AuthLayout from "../components/AuthLayout.jsx";
 import { api } from "../api.js";
 import { getAuth } from "../auth.js";
 import { findMyRoom, saveMyRoom } from "../myRooms.js";
 
 export default function JoinRoom() {
-  const [code, setCode] = useState("");
+  const [searchParams] = useSearchParams();
+  const [code, setCode] = useState((searchParams.get("code") || "").toUpperCase());
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [skillLevel, setSkillLevel] = useState(3.0);

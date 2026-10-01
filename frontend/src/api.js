@@ -22,6 +22,17 @@ export const api = {
   verifyRoom: (code, password) =>
     request(`/api/rooms/${code}/verify`, { method: "POST", body: JSON.stringify({ password }) }),
   getRoom: (code) => request(`/api/rooms/${code}`),
+  // Public list of open rooms (any device), and rooms this account hosts
+  listRooms: () => request("/api/rooms"),
+  myRooms: () => request("/api/rooms/mine"),
+  // Logged-in host: get host control on a new device / save an existing room
+  claimHost: (code) => request(`/api/rooms/${code}/claim-host`, { method: "POST", body: JSON.stringify({}) }),
+  linkRoomToAccount: (code, hostToken) =>
+    request(`/api/rooms/${code}/link-account`, {
+      method: "POST",
+      headers: { "x-host-token": hostToken },
+      body: JSON.stringify({}),
+    }),
   joinRoom: (code, name, skillLevel) =>
     request(`/api/rooms/${code}/players`, {
       method: "POST",

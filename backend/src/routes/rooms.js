@@ -4,6 +4,7 @@ import { customAlphabet } from "nanoid";
 import { query } from "../db.js";
 import { computeLevel } from "../utils/level.js";
 import { getNextUp } from "../utils/nextUp.js";
+import { accountFromRequest, requireAccount } from "../utils/auth.js";
 
 const router = Router();
 const genCode = customAlphabet("ABCDEFGHJKLMNPQRSTUVWXYZ23456789", 6);
@@ -25,17 +26,19 @@ async function requireHost(req, res, next) {
 // POST /api/rooms — create a room
 router.post("/", async (req, res) => {
   try {
-    const { title, password, maxPlayers = 24, maxCourts = 4 } = req.body;
+    const { title, password, maxPlayers = 24, maxCourts = 4, isPublic = true } = req.body;
     if (!title) return res.status(400).json({ error: "Title is required" });
+    // If the host is logged in, remember the room on their account
+    const account = await accountFromRequest(req);
 
     const code = genCode();
     const hostToken = genToken();
     const passwordHash = password ? await bcrypt.hash(password, 8) : null;
 
     const { rows } = await query(
-      `INSERT INTO rooms (code, title, password_hash, host_token, max_players, max_courts)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, code, title, max_players, max_courts, status, created_at`,
-      [code, title, passwordHash, hostToken, maxPlayers, maxCourts]
+      `INSERT INTO rooms (code, title, password_hash, host_token, max_players, max_courts, is_public, host_account_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, code, title, max_players, max_courts, status, created_at`,
+      [code, title, passwordHash, hostToken, maxPlayers, maxCourts, isPublic !== false, account ? account.id : null]
     );
 
     // create courts
@@ -53,6 +56,61 @@ router.post("/", async (req, res) => {
     console.error(err);
     res.status(500).json({ error: "Failed to create room" });
   }
+});
+
+// GET /api/rooms — public list of open rooms, so anyone on any device can find
+// and join a session without needing the code. Hosts can opt out when creating.
+router.get("/", async (req, res) => {
+  const { rows } = await query(
+    `SELECT r.code, r.title, r.max_players, r.created_at,
+            (r.password_hash IS NOT NULL) AS has_password,
+            COUNT(p.id) FILTER (WHERE p.status <> 'inactive')::int AS players,
+            COUNT(p.id) FILTER (WHERE p.status = 'waiting')::int AS waiting
+     FROM rooms r LEFT JOIN players p ON p.room_id = r.id
+     WHERE r.status = 'open' AND r.is_public AND r.created_at > now() - interval '3 days'
+     GROUP BY r.id
+     ORDER BY r.created_at DESC
+     LIMIT 30`
+  );
+  res.json({ rooms: rows });
+});
+
+// GET /api/rooms/mine — rooms the logged-in account hosts (works from any device)
+router.get("/mine", requireAccount, async (req, res) => {
+  const { rows } = await query(
+    `SELECT r.code, r.title, r.created_at,
+            COUNT(p.id) FILTER (WHERE p.status <> 'inactive')::int AS players,
+            COUNT(p.id) FILTER (WHERE p.status = 'waiting')::int AS waiting
+     FROM rooms r LEFT JOIN players p ON p.room_id = r.id
+     WHERE r.host_account_id = $1 AND r.status = 'open'
+     GROUP BY r.id
+     ORDER BY r.created_at DESC
+     LIMIT 20`,
+    [req.account.id]
+  );
+  res.json({ rooms: rows });
+});
+
+// POST /api/rooms/:code/claim-host — a logged-in host gets host control on a new
+// device. Only the account that owns the room can do this.
+router.post("/:code/claim-host", requireAccount, async (req, res) => {
+  const { rows } = await query("SELECT host_token, host_account_id FROM rooms WHERE code = $1", [req.params.code]);
+  const room = rows[0];
+  if (!room) return res.status(404).json({ error: "Room not found" });
+  if (room.host_account_id !== req.account.id) {
+    return res.status(403).json({ error: "This room isn't saved to your account" });
+  }
+  res.json({ hostToken: room.host_token });
+});
+
+// POST /api/rooms/:code/link-account — a host who is also logged in saves an
+// existing room to their account (done automatically when they open it)
+router.post("/:code/link-account", requireHost, requireAccount, async (req, res) => {
+  if (req.room.host_account_id && req.room.host_account_id !== req.account.id) {
+    return res.status(409).json({ error: "This room is already saved to another account" });
+  }
+  await query("UPDATE rooms SET host_account_id = $1 WHERE id = $2", [req.account.id, req.room.id]);
+  res.json({ ok: true });
 });
 
 // POST /api/rooms/:code/verify — check password before joining
@@ -105,8 +163,10 @@ router.get("/:code", async (req, res) => {
     playerRows.filter((p) => p.status === "waiting" || p.status === "playing")
   );
 
+  room.host_linked = room.host_account_id != null;
   delete room.password_hash;
   delete room.host_token;
+  delete room.host_account_id;
 
   res.json({
     room,
@@ -238,7 +298,7 @@ router.post("/:code/round/next", requireHost, async (req, res) => {
 
 // PATCH /api/rooms/:code — update room (host only): close/reopen, lock, etc.
 router.patch("/:code", requireHost, async (req, res) => {
-  const { status, title, maxPlayers } = req.body;
+  const { status, title, maxPlayers, isPublic } = req.body;
   if (status && !["open", "closed"].includes(status)) {
     return res.status(400).json({ error: "Status must be 'open' or 'closed'" });
   }
@@ -257,6 +317,7 @@ router.patch("/:code", requireHost, async (req, res) => {
   if (status) { fields.push(`status = $${i++}`); values.push(status); }
   if (title) { fields.push(`title = $${i++}`); values.push(title); }
   if (maxPlayers) { fields.push(`max_players = $${i++}`); values.push(maxPlayers); }
+  if (typeof isPublic === "boolean") { fields.push(`is_public = $${i++}`); values.push(isPublic); }
   if (!fields.length) return res.status(400).json({ error: "Nothing to update" });
   values.push(req.room.id);
   await query(`UPDATE rooms SET ${fields.join(", ")} WHERE id = $${i}`, values);

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api.js";
 import { saveMyRoom } from "../myRooms.js";
+import { getAuth } from "../auth.js";
 import AuthLayout from "../components/AuthLayout.jsx";
 
 export default function CreateRoom() {
@@ -9,6 +10,8 @@ export default function CreateRoom() {
   const [password, setPassword] = useState("");
   const [maxPlayers, setMaxPlayers] = useState(24);
   const [maxCourts, setMaxCourts] = useState(4);
+  const [isPublic, setIsPublic] = useState(true);
+  const loggedIn = Boolean(getAuth());
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const navigate = useNavigate();
@@ -23,6 +26,7 @@ export default function CreateRoom() {
         password: password || undefined,
         maxPlayers: Number(maxPlayers),
         maxCourts: Number(maxCourts),
+        isPublic,
       });
       // Save host token locally so this browser can manage the room
       localStorage.setItem(`host_${room.code}`, hostToken);
@@ -57,6 +61,15 @@ export default function CreateRoom() {
             <input type="number" inputMode="numeric" min={1} value={maxCourts} onChange={(e) => setMaxCourts(e.target.value)} />
           </label>
         </div>
+        <label className="check-row">
+          <input type="checkbox" checked={isPublic} onChange={(e) => setIsPublic(e.target.checked)} />
+          <span>Show this room in the public list so players can find it</span>
+        </label>
+        <p className="hint">
+          {loggedIn
+            ? "This room is saved to your account, so you can host it from any of your devices."
+            : "Log in before creating a room to host it from other devices (phone, home computer)."}
+        </p>
         {error && <p className="error">{error}</p>}
         <button className="btn block" type="submit" disabled={submitting}>
           {submitting ? "Creating…" : "Create room"}

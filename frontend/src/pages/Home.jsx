@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   FiArrowRight, FiUser, FiLogIn, FiX, FiUsers, FiShuffle, FiTrendingUp, FiMonitor,
   FiBarChart2, FiCoffee, FiPlusCircle, FiUserPlus, FiPlayCircle, FiZap,
 } from "react-icons/fi";
 import { api } from "../api.js";
-import { getMyRooms, removeMyRoom } from "../myRooms.js";
+import { getMyRooms, removeMyRoom, saveMyRoom } from "../myRooms.js";
 import { getAuth } from "../auth.js";
 import Brand from "../components/Brand.jsx";
 
@@ -30,6 +30,34 @@ export default function Home() {
   const me = getAuth()?.account;
   // code -> { missing: true } | { players, waiting }  (live info from the server)
   const [info, setInfo] = useState({});
+  const navigate = useNavigate();
+  // public list of open rooms (null while loading) and rooms this account hosts
+  const [openRooms, setOpenRooms] = useState(null);
+  const [hosted, setHosted] = useState([]);
+  const [hostError, setHostError] = useState("");
+
+  useEffect(() => {
+    api.listRooms().then((d) => setOpenRooms(d.rooms)).catch(() => setOpenRooms([]));
+    if (me) api.myRooms().then((d) => setHosted(d.rooms)).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Rooms my account hosts but this device has no host key for yet
+  const claimable = hosted.filter((h) => !localStorage.getItem(`host_${h.code}`));
+  const claimableCodes = new Set(claimable.map((h) => h.code));
+  const visibleRooms = rooms.filter((r) => !claimableCodes.has(r.code));
+
+  async function openAsHost(r) {
+    setHostError("");
+    try {
+      const { hostToken } = await api.claimHost(r.code);
+      localStorage.setItem(`host_${r.code}`, hostToken);
+      saveMyRoom({ code: r.code, title: r.title, role: "host" });
+      navigate(`/room/${r.code}`);
+    } catch (err) {
+      setHostError(err.message);
+    }
+  }
 
   // Peek at each saved room so we can show player counts and spot rooms
   // that no longer exist. Failures (offline, server waking up) are ignored.
@@ -109,11 +137,23 @@ export default function Home() {
           </div>
         </div>
 
-        {rooms.length > 0 && (
+        {(visibleRooms.length > 0 || claimable.length > 0) && (
           <div className="my-rooms">
             <h3>Your rooms</h3>
+            {hostError && <p className="hint">{hostError}</p>}
             <ul>
-              {rooms.map((r) => {
+              {claimable.map((r) => (
+                <li key={r.code} className="my-room">
+                  <div className="my-room-info">
+                    <strong>{r.title}</strong>
+                    <span className="my-room-meta">#{r.code} · Host · {r.players} players, {r.waiting} waiting</span>
+                  </div>
+                  <div className="my-room-actions">
+                    <button className="btn tiny on-dark" onClick={() => openAsHost(r)}>Open as host</button>
+                  </div>
+                </li>
+              ))}
+              {visibleRooms.map((r) => {
                 const i = info[r.code];
                 const role = r.role === "host" ? "Host" : r.playerId ? "Player" : "Viewing";
                 return (
@@ -142,6 +182,28 @@ export default function Home() {
                   </li>
                 );
               })}
+            </ul>
+          </div>
+        )}
+
+        {openRooms && openRooms.length > 0 && (
+          <div className="my-rooms">
+            <h3>Open rooms</h3>
+            <ul>
+              {openRooms.map((r) => (
+                <li key={r.code} className="my-room">
+                  <div className="my-room-info">
+                    <strong>{r.title}</strong>
+                    <span className="my-room-meta">
+                      #{r.code} · {r.players} players{r.waiting > 0 && `, ${r.waiting} waiting`}
+                      {r.has_password && " · Password"}
+                    </span>
+                  </div>
+                  <div className="my-room-actions">
+                    <Link className="btn tiny on-dark" to={`/join?code=${r.code}`}>Join</Link>
+                  </div>
+                </li>
+              ))}
             </ul>
           </div>
         )}

@@ -5,6 +5,7 @@ import {
   FiGrid, FiList, FiUsers, FiCoffee, FiAward, FiAlertCircle,
 } from "react-icons/fi";
 import { api } from "../api.js";
+import { getAuth } from "../auth.js";
 import { saveMyRoom, removeMyRoom, findMyRoom } from "../myRooms.js";
 import { useRoomLive } from "../useRoomLive.js";
 import QueueList from "../components/QueueList.jsx";
@@ -45,6 +46,15 @@ export default function RoomDashboard() {
     noticeTimer.current = setTimeout(() => setNotice(""), 5000);
   }
   useEffect(() => () => clearTimeout(noticeTimer.current), []);
+
+  // A logged-in host opening a room that isn't saved to any account yet:
+  // save it, so it shows up under "Your rooms" on their other devices.
+  const myAccountId = getAuth()?.account?.id;
+  useEffect(() => {
+    if (isHost && myAccountId && data?.room?.host_linked === false) {
+      api.linkRoomToAccount(code, hostToken).catch(() => {});
+    }
+  }, [isHost, myAccountId, data?.room?.host_linked, code, hostToken]);
 
   const refresh = useCallback(async () => {
     try {

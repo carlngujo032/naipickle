@@ -89,3 +89,9 @@ ALTER TABLE accounts ADD COLUMN IF NOT EXISTS security_answer_hash TEXT;
 ALTER TABLE rooms ADD COLUMN IF NOT EXISTS round_number INTEGER NOT NULL DEFAULT 1;
 ALTER TABLE rooms ADD COLUMN IF NOT EXISTS round_game_limit INTEGER;
 ALTER TABLE matches ADD COLUMN IF NOT EXISTS round_number INTEGER NOT NULL DEFAULT 1;
+
+-- room visibility: rooms show in the public "Open rooms" list unless the host
+-- opts out; rooms made while logged in are saved to the host's account so the
+-- host can reopen them from any device.
+ALTER TABLE rooms ADD COLUMN IF NOT EXISTS is_public BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE rooms ADD COLUMN IF NOT EXISTS host_account_id INTEGER REFERENCES accounts(id) ON DELETE SET NULL;
