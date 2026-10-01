@@ -227,8 +227,8 @@ router.get("/pairing-progress", async (req, res) => {
 
   const { rows: matches } = await query(
     `SELECT team1_p1, team1_p2, team2_p1, team2_p2 FROM matches
-     WHERE room_id = $1 AND status = 'finished'`,
-    [room.id]
+     WHERE room_id = $1 AND status = 'finished' AND round_number = $2`,
+    [room.id, room.round_number]
   );
 
   const playedPairs = new Set();

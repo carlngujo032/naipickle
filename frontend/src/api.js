@@ -60,17 +60,31 @@ export const api = {
       method: "DELETE",
       headers: { "x-host-token": hostToken },
     }),
-  nextMatch: (code, courtId, hostToken, mode = "balanced") =>
+  // `teams` = { team1: [id, id], team2: [id, id] } — the "Next up" preview the
+  // host is looking at, so exactly those teams get booked.
+  nextMatch: (code, courtId, hostToken, mode = "balanced", teams = null) =>
     request(`/api/rooms/${code}/queue/next`, {
       method: "POST",
       headers: { "x-host-token": hostToken },
-      body: JSON.stringify({ courtId, mode }),
+      body: JSON.stringify({ courtId, mode, ...(teams || {}) }),
     }),
   finishMatch: (code, matchId, score1, score2, hostToken) =>
     request(`/api/rooms/${code}/matches/${matchId}/finish`, {
       method: "POST",
       headers: { "x-host-token": hostToken },
       body: JSON.stringify({ score1, score2 }),
+    }),
+  // Games per round (null = no limit) and starting a fresh round
+  setRoundLimit: (code, gameLimit, hostToken) =>
+    request(`/api/rooms/${code}/round/limit`, {
+      method: "POST",
+      headers: { "x-host-token": hostToken },
+      body: JSON.stringify({ gameLimit }),
+    }),
+  nextRound: (code, hostToken) =>
+    request(`/api/rooms/${code}/round/next`, {
+      method: "POST",
+      headers: { "x-host-token": hostToken },
     }),
   cancelMatch: (code, matchId, hostToken) =>
     request(`/api/rooms/${code}/matches/${matchId}/cancel`, {

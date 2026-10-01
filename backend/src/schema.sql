@@ -83,3 +83,9 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_players_room_account ON players(room_id, a
 -- password reset by security question
 ALTER TABLE accounts ADD COLUMN IF NOT EXISTS security_question TEXT;
 ALTER TABLE accounts ADD COLUMN IF NOT EXISTS security_answer_hash TEXT;
+
+-- rounds: a round is a block of games (optionally capped); teammates never
+-- repeat within a round. Starting a new round resets partner history.
+ALTER TABLE rooms ADD COLUMN IF NOT EXISTS round_number INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE rooms ADD COLUMN IF NOT EXISTS round_game_limit INTEGER;
+ALTER TABLE matches ADD COLUMN IF NOT EXISTS round_number INTEGER NOT NULL DEFAULT 1;

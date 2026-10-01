@@ -13,6 +13,7 @@ import AddPlayerForm from "../components/AddPlayerForm.jsx";
 import PlayerManageList from "../components/PlayerManageList.jsx";
 import PairingProgress from "../components/PairingProgress.jsx";
 import NextUpCard from "../components/NextUpCard.jsx";
+import RoundCard from "../components/RoundCard.jsx";
 import MyStatus from "../components/MyStatus.jsx";
 import LiveBadge from "../components/LiveBadge.jsx";
 import Loading from "../components/Loading.jsx";
@@ -27,6 +28,8 @@ export default function RoomDashboard() {
   const [notice, setNotice] = useState(""); // a failed action — shown briefly, page stays usable
   const [tab, setTab] = useState("courts"); // mobile tab: courts | queue | players
   const [copied, setCopied] = useState(false);
+  // Shuffle position for the "Next up" preview; resets when the four players change
+  const [shuffle, setShuffle] = useState({ sig: "", n: 0 });
   const noticeTimer = useRef(null);
   const loaded = useRef(false);
   const hostToken = localStorage.getItem(`host_${code}`);
@@ -83,9 +86,25 @@ export default function RoomDashboard() {
   // Instant updates pushed by the server (with a slow safety refresh underneath)
   const connected = useRoomLive(code, refresh);
 
+  // The "Next up" preview exactly as currently shown (including Shuffle), or
+  // null. Sent to the server so the match that's booked is the one on screen.
+  function nextUpSig() {
+    const top = data?.nextUp?.options?.[0];
+    return top ? [...top.team1, ...top.team2].sort((a, b) => a - b).join(",") : "";
+  }
+  function nextUpVariant() {
+    return shuffle.sig === nextUpSig() ? shuffle.n : 0;
+  }
+  function shownNextTeams() {
+    const options = data?.nextUp?.options || [];
+    if (options.length === 0) return null;
+    const o = options[nextUpVariant() % options.length];
+    return { team1: o.team1, team2: o.team2 };
+  }
+
   async function handleNextMatch(courtId) {
     try {
-      await api.nextMatch(code, courtId, hostToken);
+      await api.nextMatch(code, courtId, hostToken, "balanced", shownNextTeams());
       refresh();
     } catch (err) {
       showNotice(err.message);
@@ -96,14 +115,35 @@ export default function RoomDashboard() {
     try {
       await api.finishMatch(code, matchId, Number(score1), Number(score2), hostToken);
       // Auto-assign the next match to this same court immediately, using the
-      // live queue at this exact moment — not whatever the "Next Up" preview
-      // showed a few seconds earlier. If there aren't 4 players waiting yet,
-      // this just fails quietly and the court stays empty for manual assign.
+      // "Next Up" teams that are on screen, so the match that starts is the
+      // one the host saw. If those players are no longer waiting the server
+      // picks fresh; if there aren't 4 waiting yet, this just fails quietly
+      // and the court stays empty for manual assign.
       try {
-        await api.nextMatch(code, courtId, hostToken);
+        await api.nextMatch(code, courtId, hostToken, "balanced", shownNextTeams());
       } catch (nextErr) {
         // not enough players waiting — that's fine, leave court empty
       }
+      refresh();
+    } catch (err) {
+      showNotice(err.message);
+    }
+  }
+
+  async function handleSetRoundLimit(limit) {
+    try {
+      await api.setRoundLimit(code, limit, hostToken);
+      refresh();
+    } catch (err) {
+      showNotice(err.message);
+    }
+  }
+
+  async function handleNextRound() {
+    const next = (data?.nextUp?.round?.number ?? 0) + 1;
+    if (!window.confirm(`Start round ${next}? Partner history starts fresh.`)) return;
+    try {
+      await api.nextRound(code, hostToken);
       refresh();
     } catch (err) {
       showNotice(err.message);
@@ -311,6 +351,16 @@ export default function RoomDashboard() {
           <div className="dashboard-main">
             <section className={panel("courts")}>
               <h3>Courts</h3>
+              {data.nextUp?.round && (
+                <RoundCard
+                  round={data.nextUp.round}
+                  playerCount={players.filter((p) => p.status !== "inactive").length}
+                  isHost={isHost}
+                  closed={closed}
+                  onSetLimit={handleSetRoundLimit}
+                  onNextRound={handleNextRound}
+                />
+              )}
               <div className="grid">
                 {courts.map((court) => {
                   const match = activeMatches.find((m) => m.court_id === court.id);
@@ -329,7 +379,15 @@ export default function RoomDashboard() {
                   );
                 })}
                 {isHost && !closed && (
-                  <NextUpCard queue={queue} courts={courts} onMatch={handleNextMatch} />
+                  <NextUpCard
+                    queue={queue}
+                    courts={courts}
+                    nextUp={data.nextUp}
+                    variant={nextUpVariant()}
+                    onShuffle={() => setShuffle({ sig: nextUpSig(), n: nextUpVariant() + 1 })}
+                    onMatch={handleNextMatch}
+                    onNextRound={handleNextRound}
+                  />
                 )}
               </div>
             </section>

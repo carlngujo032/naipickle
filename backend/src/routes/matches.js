@@ -1,8 +1,8 @@
 import { Router } from "express";
 import { query } from "../db.js";
 import { requireHost } from "./rooms.js";
-import { pickNextMatch, pickNextMatchRandom, buildUsedPairs } from "../utils/matchmaking.js";
-import { computeLevel } from "../utils/level.js";
+import { pickNextMatchRandom, pairKey } from "../utils/matchmaking.js";
+import { getNextUp, BLOCKED_MESSAGES } from "../utils/nextUp.js";
 
 // Add one game to the lifetime totals of every registered player in `playerIds`.
 async function updateAccountStats(playerIds, won) {
@@ -11,6 +11,17 @@ async function updateAccountStats(playerIds, won) {
      WHERE id IN (SELECT account_id FROM players WHERE id = ANY($3::int[]) AND account_id IS NOT NULL)`,
     [won ? 1 : 0, won ? 0 : 1, playerIds]
   );
+}
+
+// team1/team2 from the client are only trusted if they are 4 distinct players
+// who are all still waiting in this room.
+function validTeams(team1, team2, waiting) {
+  if (!Array.isArray(team1) || !Array.isArray(team2) || team1.length !== 2 || team2.length !== 2) return null;
+  const ids = [...team1, ...team2].map(Number);
+  if (ids.some((id) => !Number.isInteger(id)) || new Set(ids).size !== 4) return null;
+  const waitingIds = new Set(waiting.map((p) => p.id));
+  if (!ids.every((id) => waitingIds.has(id))) return null;
+  return { team1: ids.slice(0, 2), team2: ids.slice(2) };
 }
 
 const router = Router({ mergeParams: true });
@@ -37,31 +48,51 @@ router.post("/queue/next", requireHost, async (req, res) => {
      ORDER BY p.games_played ASC, p.last_played_at ASC NULLS FIRST, p.joined_at ASC`,
     [room.id]
   );
-  // Balanced mode uses each registered player's current level (unrated = 3)
-  const waiting = waitingRows.map((p) =>
-    p.account_id ? { ...p, skill_level: computeLevel(p.acc_wins, p.acc_games) ?? 3 } : p
-  );
-
-  // Teammate pairs already used in this room (finished or currently playing),
-  // so the same two players are never put on the same team twice.
-  const { rows: pastMatches } = await query(
-    `SELECT team1_p1, team1_p2, team2_p1, team2_p2 FROM matches
-     WHERE room_id = $1 AND status IN ('finished', 'in_progress')`,
+  const { rows: activeRows } = await query(
+    "SELECT id, skill_level FROM players WHERE room_id = $1 AND status IN ('waiting', 'playing')",
     [room.id]
   );
-  const usedPairs = buildUsedPairs(pastMatches);
+  const { waiting, used, options, blocked } = await getNextUp(room, waitingRows, activeRows);
 
-  const picked =
-    mode === "random" ? pickNextMatchRandom(waiting, usedPairs) : pickNextMatch(waiting, usedPairs);
-  if (!picked) return res.status(400).json({ error: "Not enough players in queue (need 4)" });
+  // Round already full — nothing more can be assigned until the next round.
+  if (blocked === "round_complete") {
+    return res.status(400).json({ error: BLOCKED_MESSAGES.round_complete, blocked });
+  }
+
+  // The host's screen shows a "Next up" preview; it sends those exact teams
+  // back so what was shown is what gets played. If the queue changed since
+  // (someone left, etc.) the teams are ignored and a fresh pick is made.
+  const sent = validTeams(req.body.team1, req.body.team2, waiting);
+  let picked;
+  if (sent) {
+    const repeats =
+      (used.has(pairKey(sent.team1[0], sent.team1[1])) ? 1 : 0) +
+      (used.has(pairKey(sent.team2[0], sent.team2[1])) ? 1 : 0);
+    picked = { ...sent, repeats };
+  } else if (mode === "random") {
+    picked = pickNextMatchRandom(waiting, used);
+  } else {
+    picked = options[0] || null;
+  }
+  if (!picked) {
+    return res.status(400).json({
+      error: BLOCKED_MESSAGES[blocked] || "Not enough players in queue (need 4)",
+      blocked,
+    });
+  }
+  // Never put two players together again within a round
+  if (picked.repeats > 0) {
+    const reason = blocked || "no_new_partners";
+    return res.status(400).json({ error: BLOCKED_MESSAGES[reason], blocked: reason });
+  }
 
   const { team1, team2 } = picked;
   const allIds = [...team1, ...team2];
 
   const { rows: matchRows } = await query(
-    `INSERT INTO matches (room_id, court_id, team1_p1, team1_p2, team2_p1, team2_p2)
-     VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-    [room.id, courtId, team1[0], team1[1], team2[0], team2[1]]
+    `INSERT INTO matches (room_id, court_id, round_number, team1_p1, team1_p2, team2_p1, team2_p2)
+     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+    [room.id, courtId, room.round_number, team1[0], team1[1], team2[0], team2[1]]
   );
 
   await query("UPDATE courts SET status = 'playing' WHERE id = $1", [courtId]);
@@ -70,11 +101,7 @@ router.post("/queue/next", requireHost, async (req, res) => {
     [allIds]
   );
 
-  res.status(201).json({
-    match: matchRows[0],
-    // > 0 only when every possible arrangement repeats a partner
-    repeatedPartners: picked.repeats,
-  });
+  res.status(201).json({ match: matchRows[0] });
 });
 
 // POST /api/rooms/:code/matches/:matchId/finish — report score, return players to queue

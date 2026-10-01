@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { customAlphabet } from "nanoid";
 import { query } from "../db.js";
 import { computeLevel } from "../utils/level.js";
+import { getNextUp } from "../utils/nextUp.js";
 
 const router = Router();
 const genCode = customAlphabet("ABCDEFGHJKLMNPQRSTUVWXYZ23456789", 6);
@@ -97,6 +98,13 @@ router.get("/:code", async (req, res) => {
     [room.id]
   );
 
+  // "Next up" preview — computed by the same code that assigns the match
+  const nextUp = await getNextUp(
+    room,
+    playerRows.filter((p) => p.status === "waiting"),
+    playerRows.filter((p) => p.status === "waiting" || p.status === "playing")
+  );
+
   delete room.password_hash;
   delete room.host_token;
 
@@ -106,6 +114,7 @@ router.get("/:code", async (req, res) => {
     queue: players.filter((p) => p.status === "waiting"),
     courts,
     activeMatches,
+    nextUp: { options: nextUp.options, blocked: nextUp.blocked, round: nextUp.round },
   });
 });
 
@@ -192,6 +201,39 @@ router.get("/:code/summary", async (req, res) => {
     console.error(err);
     res.status(500).json({ error: "Failed to load summary" });
   }
+});
+
+// POST /api/rooms/:code/round/limit — host sets how many games make up a round
+// body: { gameLimit: number | null }   (null / 0 = no limit)
+router.post("/:code/round/limit", requireHost, async (req, res) => {
+  let { gameLimit } = req.body;
+  if (gameLimit === undefined || gameLimit === null || gameLimit === "" || Number(gameLimit) === 0) {
+    gameLimit = null;
+  } else {
+    gameLimit = Number(gameLimit);
+    if (!Number.isInteger(gameLimit) || gameLimit < 1 || gameLimit > 500) {
+      return res.status(400).json({ error: "Games per round must be a whole number from 1 to 500" });
+    }
+  }
+  await query("UPDATE rooms SET round_game_limit = $1 WHERE id = $2", [gameLimit, req.room.id]);
+  res.json({ ok: true, gameLimit });
+});
+
+// POST /api/rooms/:code/round/next — start a new round (partner history starts fresh)
+router.post("/:code/round/next", requireHost, async (req, res) => {
+  if (req.room.status !== "open") return res.status(400).json({ error: "This session has ended" });
+  const { rows: active } = await query(
+    "SELECT 1 FROM matches WHERE room_id = $1 AND status = 'in_progress' LIMIT 1",
+    [req.room.id]
+  );
+  if (active.length) {
+    return res.status(400).json({ error: "Finish or cancel the games on court before starting the next round" });
+  }
+  const { rows } = await query(
+    "UPDATE rooms SET round_number = round_number + 1 WHERE id = $1 RETURNING round_number",
+    [req.room.id]
+  );
+  res.json({ ok: true, round: rows[0].round_number });
 });
 
 // PATCH /api/rooms/:code — update room (host only): close/reopen, lock, etc.

@@ -370,3 +370,10 @@ input:focus, select:focus { outline: none; border-color: var(--brand); box-shado
   .grid { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
   .site-footer { padding-left: 32px; padding-right: 32px; }
 }
+
+/* rounds */
+.round-card { border: 1px solid var(--border, #e2e8f0); border-radius: 12px; padding: 12px 14px; margin-bottom: 12px; background: #fff; }
+.round-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.round-head h4 { margin: 0; display: flex; align-items: center; gap: 6px; }
+.round-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
+.round-input { width: 96px; padding: 6px 8px; border: 1px solid var(--border, #cbd5e1); border-radius: 8px; font: inherit; }

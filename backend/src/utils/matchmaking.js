@@ -99,15 +99,72 @@ function compare(x, y) {
  *   `repeats` is 0 when nobody repeats a partner.
  */
 export function pickNextMatch(waitingPlayers, usedPairs = new Set()) {
+  const preview = previewNextMatch(waitingPlayers, usedPairs);
+  if (!preview) return null;
+  const top = preview.options[0];
+  return { team1: top.team1, team2: top.team2, repeats: top.repeats };
+}
+
+/**
+ * Deterministic preview of the next match (no randomness), so what the host
+ * sees in "Next up" is exactly what gets assigned. Returns
+ *   { options: [{ team1: [id,id], team2: [id,id], repeats }, ...] }
+ * `options` are the valid ways to split the SAME four players (best first);
+ * the UI's Shuffle button cycles through them.
+ */
+export function previewNextMatch(waitingPlayers, usedPairs = new Set()) {
   if (waitingPlayers.length < 4) return null;
-  // Look at the front of the queue first; only widen the search if that
-  // can't avoid a repeat partner.
-  let result = search(waitingPlayers, usedPairs, 8, true);
-  if (result.repeats > 0 && waitingPlayers.length > 8) {
-    const wider = search(waitingPlayers, usedPairs, 16, true);
-    if (wider.repeats < result.repeats) result = wider;
+  let best = searchDeterministic(waitingPlayers, usedPairs, 8);
+  if (best.repeats > 0 && waitingPlayers.length > 8) {
+    const wider = searchDeterministic(waitingPlayers, usedPairs, 16);
+    if (wider.repeats < best.repeats) best = wider;
   }
-  return result;
+  return { options: best.options };
+}
+
+function searchDeterministic(players, usedPairs, poolSize) {
+  const n = Math.min(poolSize, players.length);
+  const skill = (p) => Number(p.skill_level) || 3.0;
+  let bestCost = null;
+  let bestIdxs = null;
+
+  for (const idxs of combos4(n)) {
+    const four = idxs.map((i) => players[i]);
+    const queueCost = idxs[0] + idxs[1] + idxs[2] + idxs[3];
+    let groupBest = null;
+    for (const [[a, b], [c, d]] of SPLITS) {
+      const repeats =
+        (usedPairs.has(pairKey(four[a].id, four[b].id)) ? 1 : 0) +
+        (usedPairs.has(pairKey(four[c].id, four[d].id)) ? 1 : 0);
+      const imbalance = Math.abs(skill(four[a]) + skill(four[b]) - (skill(four[c]) + skill(four[d])));
+      const cost = [repeats, queueCost, imbalance];
+      if (!groupBest || compare(cost, groupBest) < 0) groupBest = cost;
+    }
+    if (!bestCost || compare(groupBest, bestCost) < 0) {
+      bestCost = groupBest;
+      bestIdxs = idxs;
+    }
+  }
+
+  // All ways to split the chosen four, best first; keep only the ones that
+  // are as good as the best on repeat partners.
+  const four = bestIdxs.map((i) => players[i]);
+  const options = [];
+  for (const [[a, b], [c, d]] of SPLITS) {
+    const repeats =
+      (usedPairs.has(pairKey(four[a].id, four[b].id)) ? 1 : 0) +
+      (usedPairs.has(pairKey(four[c].id, four[d].id)) ? 1 : 0);
+    const imbalance = Math.abs(skill(four[a]) + skill(four[b]) - (skill(four[c]) + skill(four[d])));
+    options.push({ team1: [four[a].id, four[b].id], team2: [four[c].id, four[d].id], repeats, imbalance });
+  }
+  options.sort((x, y) => x.repeats - y.repeats || x.imbalance - y.imbalance);
+  const minRepeats = options[0].repeats;
+  return {
+    repeats: minRepeats,
+    options: options
+      .filter((o) => o.repeats === minRepeats)
+      .map(({ team1, team2, repeats }) => ({ team1, team2, repeats })),
+  };
 }
 
 /** Random mix (ignores skill) — still never repeats a partner if avoidable. */
@@ -119,4 +176,38 @@ export function pickNextMatchRandom(waitingPlayers, usedPairs = new Set()) {
     if (wider.repeats < result.repeats) result = wider;
   }
   return result;
+}
+
+/** True if ANY four of these players can be split into teams with no repeat partner. */
+export function hasFreshGroup(players, usedPairs) {
+  const n = players.length;
+  for (const [a, b, c, d] of combos4(n)) {
+    const f = [players[a].id, players[b].id, players[c].id, players[d].id];
+    for (const [[i, j], [k, l]] of SPLITS) {
+      if (!usedPairs.has(pairKey(f[i], f[j])) && !usedPairs.has(pairKey(f[k], f[l]))) return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Decide what "Next up" can show. Pure function (no database) so it is easy
+ * to test.
+ *   waiting – waiting players in queue order
+ *   used    – teammate pairs already played this round
+ *   played  – games already started/finished this round
+ *   limit   – games allowed this round (null = unlimited)
+ *   active  – everyone who could still play (waiting + on court)
+ * Returns { options, blocked } where blocked is one of
+ *   null | "round_complete" | "no_new_partners" | "wait"
+ * and `options` is empty whenever blocked is set (or fewer than 4 are waiting).
+ */
+export function computeNextUp({ waiting, used, played, limit, active }) {
+  if (limit != null && played >= limit) return { options: [], blocked: "round_complete" };
+  if (waiting.length < 4) return { options: [], blocked: null };
+  const preview = previewNextMatch(waiting, used);
+  if (preview.options[0].repeats === 0) return { options: preview.options, blocked: null };
+  // Everyone waiting has partnered already. Is there a fresh group at all if
+  // the players on court are counted? If so, just wait; if not, it's over.
+  return { options: [], blocked: hasFreshGroup(active ?? waiting, used) ? "wait" : "no_new_partners" };
 }
