@@ -76,7 +76,7 @@ export default function CourtCard({ court, match, findPlayer, isHost, onNextMatc
                   onClick={() => {
                     if (
                       window.confirm(
-                        "Re-assign this match? The current match will be cancelled (no score recorded) and a new match will be created for this court."
+                        "Re-assign this match? The current match will be cancelled (no score recorded) and a different match will be created for this court."
                       )
                     ) {
                       onReassignMatch(match.id, match.court_id);

@@ -159,19 +159,16 @@ export default function RoomDashboard() {
     }
   }
 
-  async function handleReassignMatch(matchId, courtId) {
+  // Swap the match on this court for a different one. The server cancels the
+  // current match and books the best arrangement that isn't the same one; if
+  // there is no different match available it keeps the current one and says so.
+  async function handleReassignMatch(matchId) {
     try {
-      await api.cancelMatch(code, matchId, hostToken);
-      try {
-        await api.nextMatch(code, courtId, hostToken);
-      } catch (nextErr) {
-        // not enough players waiting right after cancel — that's fine,
-        // leave the court empty for manual assign
-      }
-      refresh();
+      await api.reassignMatch(code, matchId, hostToken);
     } catch (err) {
       showNotice(err.message);
     }
+    refresh();
   }
 
   async function handleRemovePlayer(playerId) {

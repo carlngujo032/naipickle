@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { query } from "../db.js";
 import { requireHost } from "./rooms.js";
-import { pickNextMatchRandom, pairKey } from "../utils/matchmaking.js";
+import { pickNextMatchRandom, pairKey, matchSignature } from "../utils/matchmaking.js";
 import { getNextUp, BLOCKED_MESSAGES } from "../utils/nextUp.js";
 
 // Add one game to the lifetime totals of every registered player in `playerIds`.
@@ -22,6 +22,19 @@ function validTeams(team1, team2, waiting) {
   const waitingIds = new Set(waiting.map((p) => p.id));
   if (!ids.every((id) => waitingIds.has(id))) return null;
   return { team1: ids.slice(0, 2), team2: ids.slice(2) };
+}
+
+// Create the match row and mark the court + the four players as playing.
+async function bookMatch(room, courtId, team1, team2) {
+  const allIds = [...team1, ...team2];
+  const { rows: matchRows } = await query(
+    `INSERT INTO matches (room_id, court_id, round_number, team1_p1, team1_p2, team2_p1, team2_p2)
+     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+    [room.id, courtId, room.round_number, team1[0], team1[1], team2[0], team2[1]]
+  );
+  await query("UPDATE courts SET status = 'playing' WHERE id = $1", [courtId]);
+  await query(`UPDATE players SET status = 'playing' WHERE id = ANY($1::int[])`, [allIds]);
+  return matchRows[0];
 }
 
 const router = Router({ mergeParams: true });
@@ -86,22 +99,8 @@ router.post("/queue/next", requireHost, async (req, res) => {
     return res.status(400).json({ error: BLOCKED_MESSAGES[reason], blocked: reason });
   }
 
-  const { team1, team2 } = picked;
-  const allIds = [...team1, ...team2];
-
-  const { rows: matchRows } = await query(
-    `INSERT INTO matches (room_id, court_id, round_number, team1_p1, team1_p2, team2_p1, team2_p2)
-     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-    [room.id, courtId, room.round_number, team1[0], team1[1], team2[0], team2[1]]
-  );
-
-  await query("UPDATE courts SET status = 'playing' WHERE id = $1", [courtId]);
-  await query(
-    `UPDATE players SET status = 'playing' WHERE id = ANY($1::int[])`,
-    [allIds]
-  );
-
-  res.status(201).json({ match: matchRows[0] });
+  const match = await bookMatch(room, courtId, picked.team1, picked.team2);
+  res.status(201).json({ match });
 });
 
 // POST /api/rooms/:code/matches/:matchId/finish — report score, return players to queue
@@ -179,6 +178,64 @@ router.post("/matches/:matchId/cancel", requireHost, async (req, res) => {
   await query(`UPDATE players SET status = 'waiting' WHERE id = ANY($1::int[])`, [allIds]);
 
   res.json({ ok: true });
+});
+
+// POST /api/rooms/:code/matches/:matchId/reassign — swap an in-progress match
+// for a DIFFERENT one on the same court. The current match is cancelled (no
+// score), then the best arrangement other than the one just cancelled is
+// booked. If there is no different match available, nothing changes.
+router.post("/matches/:matchId/reassign", requireHost, async (req, res) => {
+  const { matchId } = req.params;
+  const room = req.room;
+
+  const { rows: mRows } = await query(
+    "SELECT * FROM matches WHERE id = $1 AND room_id = $2 AND status = 'in_progress'",
+    [matchId, room.id]
+  );
+  const old = mRows[0];
+  if (!old) return res.status(404).json({ error: "Active match not found" });
+
+  const oldIds = [old.team1_p1, old.team1_p2, old.team2_p1, old.team2_p2];
+
+  // 1. cancel (same as /cancel): players back to the queue, court opens
+  await query("UPDATE matches SET status = 'cancelled', ended_at = now() WHERE id = $1", [matchId]);
+  await query("UPDATE courts SET status = 'empty' WHERE id = $1", [old.court_id]);
+  await query("UPDATE players SET status = 'waiting' WHERE id = ANY($1::int[])", [oldIds]);
+
+  // 2. best match that is not the one we just cancelled
+  const { rows: waitingRows } = await query(
+    `SELECT p.*, a.wins AS acc_wins, a.games_played AS acc_games
+     FROM players p LEFT JOIN accounts a ON a.id = p.account_id
+     WHERE p.room_id = $1 AND p.status = 'waiting'
+     ORDER BY p.games_played ASC, p.last_played_at ASC NULLS FIRST, p.joined_at ASC`,
+    [room.id]
+  );
+  const { rows: activeRows } = await query(
+    "SELECT id, skill_level FROM players WHERE room_id = $1 AND status IN ('waiting', 'playing')",
+    [room.id]
+  );
+  const exclude = new Set([
+    matchSignature([old.team1_p1, old.team1_p2], [old.team2_p1, old.team2_p2]),
+  ]);
+  const { options, blocked } = await getNextUp(room, waitingRows, activeRows, exclude);
+
+  if (!options.length) {
+    // 3. nothing different available — put the original match back untouched
+    await query(
+      "UPDATE matches SET status = 'in_progress', ended_at = NULL WHERE id = $1",
+      [matchId]
+    );
+    await query("UPDATE courts SET status = 'playing' WHERE id = $1", [old.court_id]);
+    await query("UPDATE players SET status = 'playing' WHERE id = ANY($1::int[])", [oldIds]);
+    return res.status(409).json({
+      error: BLOCKED_MESSAGES[blocked] || BLOCKED_MESSAGES.no_alternative,
+      blocked,
+    });
+  }
+
+  const pick = options[0];
+  const match = await bookMatch(room, old.court_id, pick.team1, pick.team2);
+  res.status(201).json({ match });
 });
 
 export default router;

@@ -86,6 +86,12 @@ export const api = {
       method: "POST",
       headers: { "x-host-token": hostToken },
     }),
+  // Swap an in-progress match for a different one on the same court
+  reassignMatch: (code, matchId, hostToken) =>
+    request(`/api/rooms/${code}/matches/${matchId}/reassign`, {
+      method: "POST",
+      headers: { "x-host-token": hostToken },
+    }),
   cancelMatch: (code, matchId, hostToken) =>
     request(`/api/rooms/${code}/matches/${matchId}/cancel`, {
       method: "POST",

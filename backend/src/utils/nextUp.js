@@ -8,7 +8,7 @@ import { buildUsedPairs, computeNextUp } from "./matchmaking.js";
 //   waitingRows – waiting players in queue order, joined with accounts
 //                 (acc_wins / acc_games), as in routes/matches.js
 //   activeRows  – waiting + on-court players (anyone who can still play)
-export async function getNextUp(room, waitingRows, activeRows) {
+export async function getNextUp(room, waitingRows, activeRows, exclude = null) {
   // Registered players use their current level for balancing (unrated = 3)
   const waiting = waitingRows.map((p) =>
     p.account_id ? { ...p, skill_level: computeLevel(p.acc_wins, p.acc_games) ?? 3 } : p
@@ -27,6 +27,7 @@ export async function getNextUp(room, waitingRows, activeRows) {
     played: rows.length,
     limit,
     active: activeRows,
+    exclude,
   });
   return {
     waiting,
@@ -40,5 +41,6 @@ export async function getNextUp(room, waitingRows, activeRows) {
 export const BLOCKED_MESSAGES = {
   round_complete: "This round is complete. Start the next round to keep playing.",
   no_new_partners: "Everyone waiting has already partnered with each other this round. Start the next round to continue.",
+  no_alternative: "There is no different match available right now, so the current match was kept.",
   wait: "No new partner combination among the players waiting yet. Wait for a game to finish.",
 };

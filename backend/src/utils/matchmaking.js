@@ -22,6 +22,11 @@ export function pairKey(a, b) {
   return a < b ? `${a}-${b}` : `${b}-${a}`;
 }
 
+/** Order-independent id for an exact match arrangement (which two teams). */
+export function matchSignature(team1, team2) {
+  return [pairKey(team1[0], team1[1]), pairKey(team2[0], team2[1])].sort().join("|");
+}
+
 /** Build the set of teammate pairs from match rows (team1_p1 … team2_p2). */
 export function buildUsedPairs(matchRows) {
   const used = new Set();
@@ -112,17 +117,19 @@ export function pickNextMatch(waitingPlayers, usedPairs = new Set()) {
  * `options` are the valid ways to split the SAME four players (best first);
  * the UI's Shuffle button cycles through them.
  */
-export function previewNextMatch(waitingPlayers, usedPairs = new Set()) {
+export function previewNextMatch(waitingPlayers, usedPairs = new Set(), exclude = null) {
   if (waitingPlayers.length < 4) return null;
-  let best = searchDeterministic(waitingPlayers, usedPairs, 8);
+  let best = searchDeterministic(waitingPlayers, usedPairs, 8, exclude);
   if (best.repeats > 0 && waitingPlayers.length > 8) {
-    const wider = searchDeterministic(waitingPlayers, usedPairs, 16);
+    const wider = searchDeterministic(waitingPlayers, usedPairs, 16, exclude);
     if (wider.repeats < best.repeats) best = wider;
   }
   return { options: best.options };
 }
 
-function searchDeterministic(players, usedPairs, poolSize) {
+// `exclude` (optional Set of matchSignature strings) = arrangements to skip,
+// used by Re-assign so it doesn't hand back the match that was just cancelled.
+function searchDeterministic(players, usedPairs, poolSize, exclude = null) {
   const n = Math.min(poolSize, players.length);
   const skill = (p) => Number(p.skill_level) || 3.0;
   let bestCost = null;
@@ -133,6 +140,7 @@ function searchDeterministic(players, usedPairs, poolSize) {
     const queueCost = idxs[0] + idxs[1] + idxs[2] + idxs[3];
     let groupBest = null;
     for (const [[a, b], [c, d]] of SPLITS) {
+      if (exclude && exclude.has(matchSignature([four[a].id, four[b].id], [four[c].id, four[d].id]))) continue;
       const repeats =
         (usedPairs.has(pairKey(four[a].id, four[b].id)) ? 1 : 0) +
         (usedPairs.has(pairKey(four[c].id, four[d].id)) ? 1 : 0);
@@ -140,17 +148,19 @@ function searchDeterministic(players, usedPairs, poolSize) {
       const cost = [repeats, queueCost, imbalance];
       if (!groupBest || compare(cost, groupBest) < 0) groupBest = cost;
     }
-    if (!bestCost || compare(groupBest, bestCost) < 0) {
+    if (groupBest && (!bestCost || compare(groupBest, bestCost) < 0)) {
       bestCost = groupBest;
       bestIdxs = idxs;
     }
   }
+  if (!bestIdxs) return { repeats: Infinity, options: [] };
 
   // All ways to split the chosen four, best first; keep only the ones that
   // are as good as the best on repeat partners.
   const four = bestIdxs.map((i) => players[i]);
   const options = [];
   for (const [[a, b], [c, d]] of SPLITS) {
+    if (exclude && exclude.has(matchSignature([four[a].id, four[b].id], [four[c].id, four[d].id]))) continue;
     const repeats =
       (usedPairs.has(pairKey(four[a].id, four[b].id)) ? 1 : 0) +
       (usedPairs.has(pairKey(four[c].id, four[d].id)) ? 1 : 0);
@@ -202,10 +212,11 @@ export function hasFreshGroup(players, usedPairs) {
  *   null | "round_complete" | "no_new_partners" | "wait"
  * and `options` is empty whenever blocked is set (or fewer than 4 are waiting).
  */
-export function computeNextUp({ waiting, used, played, limit, active }) {
+export function computeNextUp({ waiting, used, played, limit, active, exclude = null }) {
   if (limit != null && played >= limit) return { options: [], blocked: "round_complete" };
   if (waiting.length < 4) return { options: [], blocked: null };
-  const preview = previewNextMatch(waiting, used);
+  const preview = previewNextMatch(waiting, used, exclude);
+  if (preview.options.length === 0) return { options: [], blocked: "no_alternative" };
   if (preview.options[0].repeats === 0) return { options: preview.options, blocked: null };
   // Everyone waiting has partnered already. Is there a fresh group at all if
   // the players on court are counted? If so, just wait; if not, it's over.
