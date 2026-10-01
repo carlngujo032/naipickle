@@ -33,10 +33,19 @@ export const api = {
       headers: { "x-host-token": hostToken },
       body: JSON.stringify({}),
     }),
-  joinRoom: (code, name, skillLevel) =>
+  // Adding someone by name (a walk-in without an account) is host-only
+  joinRoom: (code, name, skillLevel, hostToken) =>
     request(`/api/rooms/${code}/players`, {
       method: "POST",
+      headers: hostToken ? { "x-host-token": hostToken } : {},
       body: JSON.stringify({ name, skillLevel }),
+    }),
+  // A player leaves the room themself (frees their spot in the queue)
+  leaveRoom: (code, playerId, playerToken) =>
+    request(`/api/rooms/${code}/players/${playerId}/leave`, {
+      method: "POST",
+      headers: playerToken ? { "x-player-token": playerToken } : {},
+      body: JSON.stringify({}),
     }),
   // ---- accounts
   register: (username, displayName, password, securityQuestion, securityAnswer) =>

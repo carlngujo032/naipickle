@@ -9,8 +9,6 @@ export default function JoinRoom() {
   const [searchParams] = useSearchParams();
   const [code, setCode] = useState((searchParams.get("code") || "").toUpperCase());
   const [password, setPassword] = useState("");
-  const [name, setName] = useState("");
-  const [skillLevel, setSkillLevel] = useState(3.0);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const navigate = useNavigate();
@@ -30,16 +28,15 @@ export default function JoinRoom() {
       const existing = findMyRoom(upperCode);
       let playerId = existing?.playerId;
       let playerToken = existing?.playerToken;
-      let playerName = existing?.name || (me ? me.display_name : name);
+      let playerName = existing?.name || me.display_name;
       if (playerId) {
         const d = await api.getRoom(upperCode);
         if (!d.players.some((p) => p.id === playerId)) playerId = undefined;
       }
       if (!playerId) {
-        // Logged in: join as your account (name + level come from your profile)
-        const { player } = me
-          ? await api.joinRoomAsAccount(upperCode)
-          : await api.joinRoom(upperCode, name, Number(skillLevel));
+        // Join as your account (name + level come from your profile). Joining
+        // twice can't create a duplicate: the server reuses your existing spot.
+        const { player } = await api.joinRoomAsAccount(upperCode);
         playerId = player.id;
         playerToken = player.player_token; // lets this device manage its own break
         playerName = player.name;
@@ -74,32 +71,30 @@ export default function JoinRoom() {
           <input value={password} onChange={(e) => setPassword(e.target.value)} />
         </label>
         {me ? (
-          <p className="joining-as">
-            Joining as <strong>{me.display_name}</strong>
-            <span className={`level-badge lv-${me.level || 0}`}>{me.level ? `Lv ${me.level}` : "Unrated"}</span>
-          </p>
+          <>
+            <p className="joining-as">
+              Joining as <strong>{me.display_name}</strong>
+              <span className={`level-badge lv-${me.level || 0}`}>{me.level ? `Lv ${me.level}` : "Unrated"}</span>
+            </p>
+            {error && <p className="error">{error}</p>}
+            <button className="btn block" type="submit" disabled={submitting}>
+              {submitting ? "Joining…" : "Join room"}
+            </button>
+          </>
         ) : (
           <>
-            <label>
-              Your name
-              <input value={name} onChange={(e) => setName(e.target.value)} required />
-            </label>
-            <label>
-              Skill level (2.0 to 5.0)
-              <input
-                type="number" step="0.5" min={2} max={5}
-                value={skillLevel} onChange={(e) => setSkillLevel(e.target.value)}
-              />
-            </label>
             <p className="hint">
-              <Link to="/login?next=/join">Log in</Link> to play with your own level and stats.
+              You need an account to join a room, so your level and stats are saved and you can't
+              be added twice.
             </p>
+            <Link
+              className="btn block"
+              to={`/login?next=${encodeURIComponent(`/join${code ? `?code=${code.trim().toUpperCase()}` : ""}`)}`}
+            >
+              Log in or create an account
+            </Link>
           </>
         )}
-        {error && <p className="error">{error}</p>}
-        <button className="btn block" type="submit" disabled={submitting}>
-          {submitting ? "Joining…" : "Join room"}
-        </button>
       </form>
     </AuthLayout>
   );

@@ -1,8 +1,8 @@
-import { FiActivity, FiClock, FiCoffee, FiCheckCircle, FiUserX } from "react-icons/fi";
+import { FiActivity, FiClock, FiCoffee, FiCheckCircle, FiUserX, FiLogOut } from "react-icons/fi";
 
 // "You" panel for a player viewing the room from their own device:
 // where they are right now, plus the Take a break / I'm back button.
-export default function MyStatus({ player, queuePosition, courtNumber, canToggle, onToggleBreak }) {
+export default function MyStatus({ player, queuePosition, courtNumber, canToggle, onToggleBreak, onLeave }) {
   let text;
   let Icon = FiClock;
   let action = null;
@@ -29,11 +29,18 @@ export default function MyStatus({ player, queuePosition, courtNumber, canToggle
         <strong>{player.name}</strong>
         <span className="my-status-text">{text}</span>
       </div>
-      {action && canToggle && (
-        <button className="btn tiny secondary" onClick={() => onToggleBreak(action.onBreak)}>
-          <action.Icon aria-hidden="true" /> {action.label}
-        </button>
-      )}
+      <div className="my-status-actions">
+        {action && canToggle && (
+          <button className="btn tiny secondary" onClick={() => onToggleBreak(action.onBreak)}>
+            <action.Icon aria-hidden="true" /> {action.label}
+          </button>
+        )}
+        {onLeave && player.status !== "playing" && player.status !== "inactive" && (
+          <button className="btn tiny secondary" onClick={onLeave}>
+            <FiLogOut aria-hidden="true" /> Leave room
+          </button>
+        )}
+      </div>
     </div>
   );
 }

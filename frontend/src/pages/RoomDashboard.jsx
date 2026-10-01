@@ -16,6 +16,7 @@ import PairingProgress from "../components/PairingProgress.jsx";
 import NextUpCard from "../components/NextUpCard.jsx";
 import RoundCard from "../components/RoundCard.jsx";
 import ReplacePlayerDialog from "../components/ReplacePlayerDialog.jsx";
+import LeaveRoomDialog from "../components/LeaveRoomDialog.jsx";
 import MyStatus from "../components/MyStatus.jsx";
 import LiveBadge from "../components/LiveBadge.jsx";
 import Loading from "../components/Loading.jsx";
@@ -34,6 +35,10 @@ export default function RoomDashboard() {
   const [shuffle, setShuffle] = useState({ sig: "", n: 0 });
   // { match, playerId } while the "replace a player" dialog is open
   const [replacing, setReplacing] = useState(null);
+  // "Leave this room?" dialog for players
+  const [leaveAsk, setLeaveAsk] = useState(false);
+  const [leaving, setLeaving] = useState(false);
+  const [leaveError, setLeaveError] = useState("");
   const noticeTimer = useRef(null);
   const loaded = useRef(false);
   const hostToken = localStorage.getItem(`host_${code}`);
@@ -143,6 +148,19 @@ export default function RoomDashboard() {
     }
   }
 
+  async function handleLeaveRoom() {
+    setLeaving(true);
+    setLeaveError("");
+    try {
+      await api.leaveRoom(code, mine.playerId, mine.playerToken);
+      removeMyRoom(code);
+      navigate("/");
+    } catch (err) {
+      setLeaveError(err.message);
+      setLeaving(false);
+    }
+  }
+
   async function handleSetRoundLimit(limit) {
     try {
       await api.setRoundLimit(code, limit, hostToken);
@@ -196,7 +214,7 @@ export default function RoomDashboard() {
 
   async function handleAddPlayer(name, skillLevel) {
     try {
-      await api.joinRoom(code, name, skillLevel);
+      await api.joinRoom(code, name, skillLevel, hostToken);
       refresh();
     } catch (err) {
       showNotice(err.message);
@@ -294,7 +312,14 @@ export default function RoomDashboard() {
     <div className="app">
       <header className="app-bar">
         <div className="app-bar-row">
-          <Link to="/" className="icon-btn" aria-label="Back to your rooms"><FiArrowLeft aria-hidden="true" /></Link>
+          {me && me.status !== "inactive" ? (
+            // players are asked whether to keep their spot or leave
+            <button className="icon-btn" aria-label="Back" onClick={() => setLeaveAsk(true)}>
+              <FiArrowLeft aria-hidden="true" />
+            </button>
+          ) : (
+            <Link to="/" className="icon-btn" aria-label="Back to your rooms"><FiArrowLeft aria-hidden="true" /></Link>
+          )}
           <div className="app-title">
             <h1>{room.title}</h1>
             <button className="code-chip" onClick={copyCode} title="Copy room code">
@@ -341,6 +366,22 @@ export default function RoomDashboard() {
             courtNumber={myCourt?.court_number}
             canToggle={Boolean(mine.playerToken) || isHost}
             onToggleBreak={(onBreakNow) => handleToggleBreak(me.id, onBreakNow)}
+            onLeave={() => setLeaveAsk(true)}
+          />
+        )}
+
+        {leaveAsk && me && (
+          <LeaveRoomDialog
+            playerName={me.name}
+            onPlaying={me.status === "playing"}
+            busy={leaving}
+            error={leaveError}
+            onStay={() => navigate("/")}
+            onLeave={handleLeaveRoom}
+            onClose={() => {
+              setLeaveAsk(false);
+              setLeaveError("");
+            }}
           />
         )}
 

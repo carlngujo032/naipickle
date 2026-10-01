@@ -24,6 +24,15 @@ router.post("/", async (req, res) => {
   if (!room) return res.status(404).json({ error: "Room not found" });
   if (room.status !== "open") return res.status(400).json({ error: "Room is not accepting players" });
 
+  // Players must log in to join. Adding someone by name only (a walk-in
+  // without an account) is something the host does from their own screen.
+  if (!isAccountJoin) {
+    const token = req.headers["x-host-token"];
+    if (!token || token !== room.host_token) {
+      return res.status(401).json({ error: "Please log in to join this room" });
+    }
+  }
+
   // Registered player: either they join themselves (logged in, asAccount) or
   // the host picks them from the dropdown (accountId + host token).
   let account = null;
@@ -76,38 +85,68 @@ router.post("/", async (req, res) => {
 // A player who has never been in a match is deleted. Anyone who has (their
 // stats are part of the session) is marked 'inactive' instead, so their games
 // still count in the leaderboard and the end-of-session summary.
+// Take a player out of the session. Someone who has never been in a match is
+// deleted; anyone who has keeps their stats and is marked 'inactive'.
+async function removePlayerFromRoom(roomId, playerId) {
+  const { rows } = await query("SELECT status FROM players WHERE id = $1 AND room_id = $2", [playerId, roomId]);
+  if (!rows[0]) return { code: 404, body: { error: "Player not found" } };
+  if (rows[0].status === "playing") {
+    return { code: 400, body: { error: "Player is on court — finish or cancel the match first" } };
+  }
+  const { rows: used } = await query(
+    `SELECT 1 FROM matches
+     WHERE room_id = $1 AND $2 IN (team1_p1, team1_p2, team2_p1, team2_p2) LIMIT 1`,
+    [roomId, playerId]
+  );
+  if (used.length) {
+    await query("UPDATE players SET status = 'inactive' WHERE id = $1 AND room_id = $2", [playerId, roomId]);
+    return { code: 200, body: { ok: true, removed: false, kept: "stats" } };
+  }
+  await query("DELETE FROM players WHERE id = $1 AND room_id = $2", [playerId, roomId]);
+  return { code: 200, body: { ok: true, removed: true } };
+}
+
 router.delete("/:playerId", requireHost, async (req, res) => {
   try {
     const playerId = Number.parseInt(req.params.playerId, 10);
     if (!Number.isInteger(playerId)) return res.status(400).json({ error: "Invalid player" });
-
-    const { rows } = await query("SELECT status FROM players WHERE id = $1 AND room_id = $2", [
-      playerId,
-      req.room.id,
-    ]);
-    if (!rows[0]) return res.status(404).json({ error: "Player not found" });
-    if (rows[0].status === "playing") {
-      return res.status(400).json({ error: "Player is on court — finish or cancel the match first" });
-    }
-
-    const { rows: used } = await query(
-      `SELECT 1 FROM matches
-       WHERE room_id = $1 AND $2 IN (team1_p1, team1_p2, team2_p1, team2_p2) LIMIT 1`,
-      [req.room.id, playerId]
-    );
-    if (used.length) {
-      await query("UPDATE players SET status = 'inactive' WHERE id = $1 AND room_id = $2", [
-        playerId,
-        req.room.id,
-      ]);
-      return res.json({ ok: true, removed: false, kept: "stats" });
-    }
-
-    await query("DELETE FROM players WHERE id = $1 AND room_id = $2", [playerId, req.room.id]);
-    res.json({ ok: true, removed: true });
+    const result = await removePlayerFromRoom(req.room.id, playerId);
+    res.status(result.code).json(result.body);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to remove player" });
+  }
+});
+
+// POST /api/rooms/:code/players/:playerId/leave — a player leaves the room
+// themself (x-player-token from their own device, or their logged-in account).
+// Their spot in the queue is freed; they can join again later.
+router.post("/:playerId/leave", async (req, res) => {
+  try {
+    const playerId = Number.parseInt(req.params.playerId, 10);
+    if (!Number.isInteger(playerId)) return res.status(400).json({ error: "Invalid player" });
+    const room = await getRoomByCode(req.params.code);
+    if (!room) return res.status(404).json({ error: "Room not found" });
+
+    const { rows } = await query("SELECT * FROM players WHERE id = $1 AND room_id = $2", [playerId, room.id]);
+    const player = rows[0];
+    if (!player) return res.json({ ok: true, removed: true }); // already gone — that's fine
+
+    const playerToken = req.headers["x-player-token"];
+    const account = await accountFromRequest(req);
+    const isSelf =
+      (Boolean(playerToken) && Boolean(player.player_token) && playerToken === player.player_token) ||
+      (account && player.account_id === account.id);
+    if (!isSelf) return res.status(403).json({ error: "You can only leave as yourself" });
+
+    if (player.status === "playing") {
+      return res.status(400).json({ error: "You're on court right now — finish your game first" });
+    }
+    const result = await removePlayerFromRoom(room.id, playerId);
+    res.status(result.code).json(result.body);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to leave the room" });
   }
 });
 
