@@ -69,7 +69,11 @@ export default function Home() {
         if (!cancelled) {
           setInfo((prev) => ({
             ...prev,
-            [r.code]: { players: d.players.length, waiting: d.queue.length },
+            [r.code]: {
+              players: d.players.length,
+              waiting: d.queue.length,
+              closed: d.room.status === "closed",
+            },
           }));
         }
       } catch (err) {
@@ -83,8 +87,39 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function handleRemove(code) {
-    removeMyRoom(code);
+  // The X on a room:
+  //  - host: closes the room for everyone, so it also disappears from the
+  //    public list and nobody is left in a room with no host
+  //  - player: leaves the room, so they don't stay in the queue as a ghost
+  //  - just viewing / room already gone or ended: only removes it from this list
+  async function handleRemove(r) {
+    setHostError("");
+    const i = info[r.code];
+    const hostToken = localStorage.getItem(`host_${r.code}`);
+    const gone = Boolean(i?.missing) || Boolean(i?.closed);
+
+    if (!gone && r.role === "host" && hostToken) {
+      if (!window.confirm(`Remove "${r.title}"? This ends the room for everyone: players will no longer see it or be able to join.`)) return;
+      try {
+        await api.updateRoom(r.code, { status: "closed" }, hostToken);
+        setOpenRooms((list) => list && list.filter((x) => x.code !== r.code));
+        setHosted((list) => list.filter((x) => x.code !== r.code));
+      } catch (err) {
+        if (err.message !== "Room not found") {
+          setHostError(err.message);
+          return;
+        }
+      }
+    } else if (!gone && r.playerId) {
+      if (!window.confirm(`Leave "${r.title}"? Your spot in the queue will be freed.`)) return;
+      try {
+        await api.leaveRoom(r.code, r.playerId, r.playerToken);
+      } catch (err) {
+        setHostError(err.message);
+        return;
+      }
+    }
+    removeMyRoom(r.code);
     setRooms(getMyRooms());
   }
 
@@ -164,6 +199,7 @@ export default function Home() {
                         #{r.code} · {role}
                         {i?.players != null && ` · ${i.players} players, ${i.waiting} waiting`}
                         {i?.missing && " · Room no longer exists"}
+                        {i?.closed && " · Ended"}
                       </span>
                     </div>
                     <div className="my-room-actions">
@@ -172,9 +208,15 @@ export default function Home() {
                       )}
                       <button
                         className="my-room-remove"
-                        onClick={() => handleRemove(r.code)}
-                        title="Remove from this list (the room itself is not deleted)"
-                        aria-label={`Remove ${r.title} from your list`}
+                        onClick={() => handleRemove(r)}
+                        title={
+                          r.role === "host"
+                            ? "Remove: ends this room for everyone"
+                            : r.playerId
+                              ? "Leave this room"
+                              : "Remove from this list"
+                        }
+                        aria-label={`Remove ${r.title}`}
                       >
                         <FiX aria-hidden="true" />
                       </button>
